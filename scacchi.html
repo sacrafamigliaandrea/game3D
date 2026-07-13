@@ -491,177 +491,231 @@ fill.position.set(-24,16,-26);
 scene.add(fill);
 
 /* =====================================================================
-   2a. AMBIENTE: IL CORTILE DELLA SCUOLA (ricostruzione da 3.jpg)
-   Campo da basket terracotta con aree e bordo blu, edificio scolastico
-   grigio a due piani con porticato, casetta crema con scala, balcone e
-   festoni colorati, filari di alberi, recinzione, tavoli arancioni,
-   porta da calcio sul prato. Condiviso con monopoli.html.
+   2a. AMBIENTE: IL CORTILE VERO DELLA SCUOLA
+   Ricostruito dalle foto e dai video reali (Campus.png, campo_basket,
+   campo_volley, IMG_2939-42, video del cortile): campo bordeaux con
+   aree celesti e disco centrale azzurro, ali moderne bianche con
+   vetrate (nord ed est, con le tubazioni), canestro su palo a ovest e
+   canestro appeso al traliccio a est, edificio giallo dal tetto rosso
+   con la tettoia dai pannelli colorati e il parco giochi dell'infanzia,
+   campo verde da volley con rete e porticine, recinzione, prato con
+   porta da calcio, filare di platani con panchine, nastri colorati tesi
+   sopra il cortile. Funzione condivisa con monopoli.html e tesoro.html.
    ===================================================================== */
 const GY=-.19;   // quota del suolo di gioco
 function buildEnvironment(scene){
   const env=new THREE.Group(); scene.add(env);
   const mat=(c,r,m)=>new THREE.MeshStandardMaterial({color:c,roughness:r===undefined?.85:r,metalness:m||0});
   const M={
-    asphalt:mat(0x9AA2A9,1), grass:mat(0x69A24C,1),
-    grey:mat(0xA8A6A0,.9), greyDark:mat(0x5E6770,.9), band:mat(0x2F4258,.6),
-    white:mat(0xF2F2EE,.7), cream:mat(0xEFE6C6,.9), roof:mat(0xA5553F,.9),
-    pole:mat(0x7A8288,.6,.4), orange:mat(0xD9822B,.8), wood:mat(0x8A5A33,.9),
+    asphalt:mat(0x9BA1A6,1), grass:mat(0x6BA24E,1), turf:mat(0x55884A,1),
+    white:mat(0xF2F2EE,.7), facade:mat(0xE9E7E0,.9),
+    glass:mat(0x9FBDD3,.3,.45),
+    yellow:mat(0xE4B85C,.9), cream:mat(0xEFE2C0,.9),
+    roof:mat(0xA5553F,.9), roofBlue:mat(0x5E7E9B,.7), dark:mat(0x4A4F55,.8),
+    pole:mat(0x7A8288,.6,.4), steel:mat(0x99A1A9,.5,.55), duct:mat(0xC2C7CC,.5,.4),
     trunk:mat(0x6B4A2F,1), leafA:mat(0x4E8C3A,1), leafB:mat(0x5FA047,1), leafC:mat(0x3F7A31,1),
-    fence:mat(0x8A9199,.6,.5), ring:mat(0xE85D2A,.5,.3),
+    fenceV:mat(0x4E7D50,.7,.3), ring:mat(0xE85D2A,.5,.3), wood:mat(0x9A7248,.85),
+    casaB:mat(0x3E7BD6,.8), casaG:mat(0xE3A81C,.8), casaV:mat(0x3E8E4E,.8), casaR:mat(0xC0452F,.8),
   };
-  const box=(w,h,d,m,x,y,z,ry,rx)=>{
+  const box=(w,h,d,m,x,y,z,ry,rx,rz)=>{
     const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);
     o.position.set(x,y,z);
-    if(ry)o.rotation.y=ry; if(rx)o.rotation.x=rx;
+    if(ry)o.rotation.y=ry; if(rx)o.rotation.x=rx; if(rz)o.rotation.z=rz;
     o.castShadow=true; o.receiveShadow=true; env.add(o); return o;
   };
-  const cyl=(r1,r2,h,m,x,y,z,rx,rz)=>{
+  const cy=(r1,r2,h,m,x,y,z,rx)=>{
     const o=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,12),m);
     o.position.set(x,y,z);
-    if(rx)o.rotation.x=rx; if(rz)o.rotation.z=rz;
+    if(rx)o.rotation.x=rx;
     o.castShadow=true; env.add(o); return o;
   };
 
-  /* --- suolo: asfalto + prato --- */
+  /* --- suolo: asfalto del cortile + grande prato a sud --- */
   const asph=new THREE.Mesh(new THREE.PlaneGeometry(260,260),M.asphalt);
   asph.rotation.x=-Math.PI/2; asph.position.y=GY-.03; asph.receiveShadow=true; env.add(asph);
-  const grass=new THREE.Mesh(new THREE.PlaneGeometry(70,110),M.grass);
-  grass.rotation.x=-Math.PI/2; grass.position.set(60,GY-.015,-4); grass.receiveShadow=true; env.add(grass);
+  const lawn=new THREE.Mesh(new THREE.PlaneGeometry(96,62),M.grass);
+  lawn.rotation.x=-Math.PI/2; lawn.position.set(10,GY-.015,43); lawn.receiveShadow=true; env.add(lawn);
 
-  /* --- campo da basket: texture disegnata (terracotta + blu + linee) --- */
-  const W=38, H=21, PX=32;
+  /* --- il campo vero: bordeaux, aree celesti, disco centrale pieno --- */
+  const W=38,H=21,PX=32;
   const cv=document.createElement('canvas'); cv.width=W*PX; cv.height=H*PX;
   const g=cv.getContext('2d');
   const X=x=>(x+W/2)*PX, Z=z=>(z+H/2)*PX;
-  g.fillStyle='#5E7E9B'; g.fillRect(0,0,cv.width,cv.height);          // bordo blu
-  g.fillStyle='#C4674C'; g.fillRect(X(-16),Z(-8.5),32*PX,17*PX);      // terracotta
+  g.fillStyle='#6B8CA6'; g.fillRect(0,0,cv.width,cv.height);
+  g.fillStyle='#8A4136'; g.fillRect(X(-16),Z(-8.5),32*PX,17*PX);
   g.strokeStyle='#F5F2EA'; g.lineWidth=5; g.lineCap='round';
-  g.strokeRect(X(-16),Z(-8.5),32*PX,17*PX);                           // perimetro
-  g.beginPath(); g.moveTo(X(0),Z(-8.5)); g.lineTo(X(0),Z(8.5)); g.stroke(); // metà campo
-  g.beginPath(); g.arc(X(0),Z(0),1.8*PX,0,Math.PI*2); g.stroke();     // cerchio centrale
-  for(const s of [-1,1]){                                             // aree e archi
-    const bx=s*16, key=s*10.2, ft=s*10.2, basket=s*14.8;
-    g.fillStyle='#5E7E9B';
-    g.fillRect(Math.min(X(bx),X(key)),Z(-2.45),Math.abs(X(bx)-X(key)),4.9*PX);
-    g.strokeRect(Math.min(X(bx),X(key)),Z(-2.45),Math.abs(X(bx)-X(key)),4.9*PX);
-    g.beginPath(); g.arc(X(ft),Z(0),1.8*PX,0,Math.PI*2); g.stroke();  // lunetta
-    g.beginPath();                                                    // arco da tre
-    g.arc(X(basket),Z(0),6.6*PX,(s>0?Math.PI/2+.15:-Math.PI/2+.15),(s>0?Math.PI*1.5-.15:Math.PI/2-.15));
+  for(const s of [-1,1]){
+    g.fillStyle='#7E99AC';
+    g.fillRect(Math.min(X(s*16),X(s*10.2)),Z(-2.45),Math.abs(X(s*16)-X(s*10.2)),4.9*PX);
+    g.strokeRect(Math.min(X(s*16),X(s*10.2)),Z(-2.45),Math.abs(X(s*16)-X(s*10.2)),4.9*PX);
+    g.beginPath(); g.arc(X(s*10.2),Z(0),1.8*PX,0,Math.PI*2); g.stroke();
+    g.beginPath();
+    g.arc(X(s*14.8),Z(0),6.6*PX,(s>0?Math.PI/2+.15:-Math.PI/2+.15),(s>0?Math.PI*1.5-.15:Math.PI/2-.15));
     g.stroke();
   }
+  g.fillStyle='#7E99AC';
+  g.beginPath(); g.arc(X(0),Z(0),1.8*PX,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(X(0),Z(0),1.8*PX,0,Math.PI*2); g.stroke();
+  g.strokeRect(X(-16),Z(-8.5),32*PX,17*PX);
+  g.beginPath(); g.moveTo(X(0),Z(-8.5)); g.lineTo(X(0),Z(8.5)); g.stroke();
   const courtTex=new THREE.CanvasTexture(cv);
   courtTex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
   const court=new THREE.Mesh(new THREE.PlaneGeometry(W,H),
     new THREE.MeshStandardMaterial({map:courtTex,roughness:.92}));
   court.rotation.x=-Math.PI/2; court.position.y=GY+.01; court.receiveShadow=true; env.add(court);
 
-  /* --- canestri regolamentari alle due estremità --- */
-  for(const s of [-1,1]){
-    const px=s*17.2;
-    cyl(.12,.14,3.6,M.pole,px,GY+1.8,0);
-    box(1.5,.12,.12,M.pole,px-s*.75,GY+3.35,0);
-    box(.06,1.05,1.8,M.white,px-s*1.55,GY+3.35,0);
-    box(.1,1.15,1.9,M.greyDark,px-s*1.48,GY+3.35,0);
-    const rim=new THREE.Mesh(new THREE.TorusGeometry(.23,.02,8,20),M.ring);
-    rim.rotation.x=Math.PI/2; rim.position.set(px-s*1.85,GY+3.05,0); env.add(rim);
-    const net=new THREE.Mesh(new THREE.CylinderGeometry(.23,.13,.4,10,1,true),
-      new THREE.MeshBasicMaterial({color:0xF2F2EE,wireframe:true}));
-    net.position.set(px-s*1.85,GY+2.83,0); env.add(net);
-  }
-  /* canestro da allenamento in secondo piano (a destra nella foto) */
-  cyl(.1,.12,2.8,M.pole,24,GY+1.4,11);
-  box(1,.1,.1,M.pole,23.5,GY+2.7,11);
-  box(.05,.8,1.2,M.greyDark,22.95,GY+2.7,11);
-  const rim2=new THREE.Mesh(new THREE.TorusGeometry(.2,.02,8,18),M.ring);
-  rim2.rotation.x=Math.PI/2; rim2.position.set(22.7,GY+2.45,11); env.add(rim2);
+  /* --- canestro di ovest: su palo --- */
+  cy(.12,.14,3.6,M.pole,-16.6,GY+1.8,0);
+  box(1.5,.12,.12,M.pole,-15.85,GY+3.35,0);
+  box(.1,1.15,1.9,M.dark,-15.28,GY+3.35,0);
+  box(.06,1.05,1.8,M.white,-15.2,GY+3.35,0);
+  const rimW=new THREE.Mesh(new THREE.TorusGeometry(.23,.02,8,20),M.ring);
+  rimW.rotation.x=Math.PI/2; rimW.position.set(-14.9,GY+3.05,0); env.add(rimW);
+  const netW=new THREE.Mesh(new THREE.CylinderGeometry(.23,.13,.4,10,1,true),
+    new THREE.MeshBasicMaterial({color:0xF2F2EE,wireframe:true}));
+  netW.position.set(-14.9,GY+2.83,0); env.add(netW);
 
-  /* --- edificio scolastico a L (grigio, due piani, porticato) --- */
-  function wing(cx,cz,len,alongX){
-    const w=alongX?len:9, d=alongX?9:len;
-    box(w,7.6,d,M.grey,cx,GY+3.8,cz);
-    box(w+(alongX?.4:.45),.3,d+(alongX?.45:.4),M.greyDark,cx,GY+7.7,cz);
-    const fx=alongX?cx:cx+4.53, fz=alongX?cz+4.53:cz;
-    // fascia finestre del piano superiore
-    if(alongX) box(len-4,1.7,.12,M.band,cx,GY+5.3,fz);
-    else       box(.12,1.7,len-4,M.band,fx,GY+5.3,cz);
-    const n=Math.floor((len-4)/3.4);
-    for(let i=0;i<=n;i++){
-      const t=-(len-4)/2+i*((len-4)/n);
-      if(alongX) box(.14,1.7,.16,M.white,cx+t,GY+5.3,fz+.01);
-      else       box(.16,1.7,.14,M.white,fx+.01,GY+5.3,cz+t);
+  /* --- canestro di est: appeso al traliccio d'acciaio (come nel video) --- */
+  cy(.09,.11,4.6,M.steel,18.4,GY+2.3,-1.7);
+  cy(.09,.11,4.6,M.steel,18.4,GY+2.3,1.7);
+  box(.18,.18,3.8,M.steel,18.4,GY+4.6,0);
+  box(3.6,.16,.16,M.steel,16.7,GY+4.6,0);
+  box(.12,1.1,.12,M.steel,15.15,GY+4.0,0);
+  const tie=cy(.03,.03,2.5,M.steel,16.6,GY+5.15,0); tie.rotation.z=1.12;
+  box(.1,1.15,1.9,M.dark,15.28,GY+3.35,0);
+  box(.06,1.05,1.8,M.white,15.2,GY+3.35,0);
+  const rimE=new THREE.Mesh(new THREE.TorusGeometry(.23,.02,8,20),M.ring);
+  rimE.rotation.x=Math.PI/2; rimE.position.set(14.9,GY+3.05,0); env.add(rimE);
+  const netE=new THREE.Mesh(new THREE.CylinderGeometry(.23,.13,.4,10,1,true),
+    new THREE.MeshBasicMaterial({color:0xF2F2EE,wireframe:true}));
+  netE.position.set(14.9,GY+2.83,0); env.add(netE);
+
+  /* --- ali moderne bianche con grandi vetrate (nord ed est) --- */
+  function modernWing(cx,cz,len,alongX,face){
+    const w=alongX?len:9.5, d=alongX?9.5:len;
+    box(w,9.8,d,M.facade,cx,GY+4.9,cz);
+    box(w+.4,.3,d+.4,M.dark,cx,GY+9.9,cz);
+    const fx=alongX?cx:cx+face*4.85, fz=alongX?cz+face*4.85:cz;
+    if(alongX) box(len-2,2.6,.16,M.glass,cx,GY+1.4,fz+face*.02);
+    else box(.16,2.6,len-2,M.glass,fx+face*.02,GY+1.4,cz);
+    for(const wy of [GY+4.7,GY+7.5]){
+      if(alongX) box(len-3,1.7,.12,M.glass,cx,wy,fz+face*.01);
+      else box(.12,1.7,len-3,M.glass,fx+face*.01,wy,cz);
+      const n=Math.floor((len-3)/2.2);
+      for(let i=0;i<=n;i++){
+        const t=-(len-3)/2+i*((len-3)/n);
+        if(alongX) box(.1,1.7,.15,M.white,cx+t,wy,fz+face*.02);
+        else box(.15,1.7,.1,M.white,fx+face*.02,wy,cz+t);
+      }
     }
-    // piano terra: fondo scuro + pilastri chiari (porticato)
-    if(alongX) box(len-2,2.8,.14,M.greyDark,cx,GY+1.4,fz-.1);
-    else       box(.14,2.8,len-2,M.greyDark,fx-.1,GY+1.4,cz);
-    const nc=Math.floor((len-2)/3.8);
+    const nc=Math.floor((len-2)/2.6);
     for(let i=0;i<=nc;i++){
       const t=-(len-2)/2+i*((len-2)/nc);
-      if(alongX) box(.4,2.8,.4,M.white,cx+t,GY+1.4,fz+.15);
-      else       box(.4,2.8,.4,M.white,fx+.15,GY+1.4,cz+t);
+      if(alongX) box(.14,2.6,.2,M.white,cx+t,GY+1.4,fz+face*.03);
+      else box(.2,2.6,.14,M.white,fx+face*.03,GY+1.4,cz+t);
     }
   }
-  wing(-27,-1,46,false);   // ala dietro il canestro di sinistra
-  wing(2,-20,44,true);     // ala lunga di fondo
+  modernWing(1,-16.2,44,true,1);      // ala nord
+  modernWing(24.8,-3,22,false,-1);    // ala est
+  /* accenti colorati sulle cornici delle finestre (come nelle foto) */
+  box(.12,1.7,.5,M.casaR,6,GY+4.7,-11.28);
+  box(.12,1.7,.5,M.casaG,-8,GY+7.5,-11.28);
+  box(.12,1.7,.5,M.casaV,14,GY+7.5,-11.28);
+  box(.5,1.7,.12,M.casaG,19.88,GY+4.7,2);
+  /* tubazioni verticali dell'ala est */
+  for(const dz of [-6.5,-5.2,-3.9]) cy(.2,.2,8.8,M.duct,19.85,GY+4.4,dz);
 
-  /* --- casetta crema con tetto, balcone, scala e festoni --- */
-  box(8,6.8,8,M.cream,-16.5,GY+3.4,-13.5);
-  box(7.9,1.7,7.9,M.cream,-16.5,GY+7.2,-13.5);   // sottotetto (chiude i timpani)
-  box(8.8,.14,4.9,M.roof,-16.5,GY+7.55,-15.45,0,.38);
-  box(8.8,.14,4.9,M.roof,-16.5,GY+7.55,-11.55,0,-.38);
-  box(9,.14,.3,M.roof,-16.5,GY+8.42,-13.5);
-  box(6,.16,1.8,M.cream,-16.5,GY+3.5,-8.6);            // balcone
-  box(6,.06,.06,M.fence,-16.5,GY+4.45,-7.75);
-  for(let i=0;i<=12;i++) box(.05,.95,.05,M.fence,-19.5+i*.5,GY+3.98,-7.75);
-  for(let i=0;i<9;i++)                                  // scala
-    box(1.5,.14,.5,M.cream,-12.9,GY+3.3-i*.38,-8.2+i*.46);
-  /* festoni colorati dal balcone verso gli alberi: passano alti sopra il
-     campo (come nella foto) senza proiettare ombre sulla scacchiera */
-  const ends=[[-25,GY+4.6,7,0xE84393],[-21,GY+4.4,11,0x37B36B],[-26,GY+4.2,2,0x3B8BD9]];
-  for(const [ex,ey,ez,col] of ends){
-    const a=new THREE.Vector3(-13.5,GY+4.6,-8.2), b=new THREE.Vector3(ex,ey,ez);
-    const mid=a.clone().lerp(b,.5); mid.y-=.7;
-    const curve=new THREE.CatmullRomCurve3([a,mid,b]);
-    const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,24,.055,6),mat(col,.6));
-    env.add(tube);
-    cyl(.04,.05,ey-GY,M.pole,ex,(ey+GY)/2,ez);
+  /* --- edificio giallo con tetto rosso (ovest) + blocco crema --- */
+  box(9.5,6.2,16,M.yellow,-25.2,GY+3.1,-1);
+  box(9.7,1.5,15.6,M.yellow,-25.2,GY+6.6,-1);
+  box(5.4,.14,17,M.roof,-23.2,GY+7.05,-1,0,0,.42);
+  box(5.4,.14,17,M.roof,-27.2,GY+7.05,-1,0,0,-.42);
+  box(.3,.14,17.2,M.roof,-25.2,GY+8.05,-1);
+  for(const wy of [GY+2.2,GY+4.7])
+    for(let zz=-7;zz<=5;zz+=2.4)
+      box(.12,1.3,1.1,M.white,-20.42,wy,zz);
+  box(8.5,8.8,9.5,M.cream,-25.5,GY+4.4,-14.8);
+  box(8.9,.3,9.9,M.dark,-25.5,GY+8.9,-14.8);
+  for(const wy of [GY+3.2,GY+6.2])
+    for(let zz=-17.8;zz<=-11.8;zz+=2)
+      box(.12,1.2,1,M.white,-21.22,wy,zz);
+  /* corpo basso di raccordo con tetto in lamiera blu */
+  box(4.2,3,7,M.cream,-21,GY+1.5,-9.5);
+  box(4.8,.12,7.6,M.roofBlue,-21,GY+3.3,-9.5,0,0,.2);
+
+  /* --- tettoia con i pannelli colorati (davanti all'edificio giallo) --- */
+  box(3,.16,11,M.dark,-18.4,GY+2.7,-2.5);
+  for(const zz of [-7.5,-5,-2.5,0,2.5]) cy(.08,.08,2.7,M.white,-17.1,GY+1.35,zz);
+  [M.casaR,M.casaV,M.casaB,M.casaG].forEach((pm,i)=>{
+    box(.12,1.05,1.6,pm,-19.7,GY+.55,-6.5+i*2);
+  });
+
+  /* --- parco giochi dell'infanzia con staccionata bianca (angolo NO) --- */
+  for(let px=-19;px<=-13;px+=.45) box(.06,.7,.06,M.white,px,GY+.35,-9.4);
+  box(6.2,.05,.05,M.white,-16,GY+.62,-9.4);
+  for(let pz=-11;pz<=-9.6;pz+=.45) box(.06,.7,.06,M.white,-13,GY+.35,pz);
+  box(1.2,1,1.1,M.casaR,-17.5,GY+.5,-10.4);
+  box(1.4,.08,.7,M.casaV,-17.5,GY+1.15,-10.7,0,.5);
+  box(1.4,.08,.7,M.casaV,-17.5,GY+1.15,-10.1,0,-.5);
+  box(.8,.1,1.6,M.casaV,-14.8,GY+.6,-10.3,0,.55);
+  box(.6,.9,.08,M.casaG,-14.8,GY+.45,-9.55);
+
+  /* --- campo verde da volley con rete e porticine (a sud) --- */
+  const turf=new THREE.Mesh(new THREE.PlaneGeometry(26,10),M.turf);
+  turf.rotation.x=-Math.PI/2; turf.position.set(-1,GY+.008,16.2); turf.receiveShadow=true; env.add(turf);
+  box(18,.012,.08,M.white,-1,GY+.02,11.7);
+  box(18,.012,.08,M.white,-1,GY+.02,20.7);
+  box(.08,.012,9,M.white,-10,GY+.02,16.2);
+  box(.08,.012,9,M.white,8,GY+.02,16.2);
+  cy(.05,.05,2.4,M.pole,-1,GY+1.2,11.9);
+  cy(.05,.05,2.4,M.pole,-1,GY+1.2,20.5);
+  const vnet=new THREE.Mesh(new THREE.BoxGeometry(.04,.8,8.6),
+    new THREE.MeshBasicMaterial({color:0xF2F2EE,wireframe:true}));
+  vnet.position.set(-1,GY+1.8,16.2); env.add(vnet);
+  for(const gx of [-9.7,7.7]){
+    cy(.05,.05,1.6,M.white,gx,GY+.8,14.7);
+    cy(.05,.05,1.6,M.white,gx,GY+.8,17.7);
+    box(.1,.1,3.1,M.white,gx,GY+1.6,16.2);
   }
 
-  /* --- filari di alberi --- */
-  const trees=[[-20,17],[-14,18.5],[-8,17.5],[-2,18],[4,17],[10,18.5],[16,17.5],[22,18],[28,17],[34,18],
-               [40,14],[46,10],[52,4],[54,-4],[52,-12],[46,-18],[40,-22]];
-  trees.forEach(([tx,tz],i)=>{
+  /* --- recinzione verde tra il campo e il prato --- */
+  for(let fx2=-16;fx2<=12;fx2+=2.8) cy(.04,.04,1.1,M.fenceV,fx2,GY+.55,21.8);
+  for(const hy of [.35,.7,1.02]) box(28.5,.04,.04,M.fenceV,-2,GY+hy,21.8);
+
+  /* --- prato: porta da calcio, filare di platani con le panchine --- */
+  cy(.06,.06,2.1,M.white,1,GY+1.05,31);
+  cy(.06,.06,2.1,M.white,6,GY+1.05,31);
+  box(5.2,.1,.1,M.white,3.5,GY+2.1,31);
+  for(let i=0;i<6;i++){
+    const tz=13+i*6.2, lm=[M.leafA,M.leafB,M.leafC][i%3];
+    cy(.28,.4,4.4,M.trunk,24.5,GY+2.2,tz);
+    const s1=new THREE.Mesh(new THREE.SphereGeometry(2.4,10,8),lm);
+    s1.position.set(24.5,GY+6,tz); s1.castShadow=true; env.add(s1);
+    const s2=new THREE.Mesh(new THREE.SphereGeometry(1.7,10,8),lm);
+    s2.position.set(25.5,GY+4.9,tz+.7); s2.castShadow=true; env.add(s2);
+    box(2.1,.08,.45,M.wood,22.3,GY+.48,tz+2);
+    box(.08,.44,.4,M.dark,21.5,GY+.24,tz+2);
+    box(.08,.44,.4,M.dark,23.1,GY+.24,tz+2);
+  }
+  /* alberi sparsi e siepe di fondo */
+  [[-6,34],[-2,47],[34,28],[40,42],[14,53],[-14,28]].forEach(([tx,tz],i)=>{
     const lm=[M.leafA,M.leafB,M.leafC][i%3];
-    cyl(.22,.32,2.4,M.trunk,tx,GY+1.2,tz);
-    const s1=new THREE.Mesh(new THREE.SphereGeometry(1.7,10,8),lm);
-    s1.position.set(tx,GY+3.7,tz); s1.castShadow=true; env.add(s1);
-    const s2=new THREE.Mesh(new THREE.SphereGeometry(1.2,10,8),lm);
-    s2.position.set(tx+.9,GY+3,tz+.5); s2.castShadow=true; env.add(s2);
+    cy(.2,.3,2.4,M.trunk,tx,GY+1.2,tz);
+    const s1=new THREE.Mesh(new THREE.SphereGeometry(1.6,10,8),lm);
+    s1.position.set(tx,GY+3.6,tz); s1.castShadow=true; env.add(s1);
   });
+  for(let hx=-8;hx<=48;hx+=14) box(12,1.3,1,M.leafC,hx,GY+.65,58);
 
-  /* --- recinzione metallica --- */
-  function fenceRun(x0,z0,x1,z1){
-    const dx=x1-x0, dz=z1-z0, L=Math.hypot(dx,dz), n=Math.round(L/3.2);
-    for(let i=0;i<=n;i++) cyl(.05,.05,1.15,M.fence,x0+dx*i/n,GY+.57,z0+dz*i/n);
-    for(const hy of [.35,.7,1.05])
-      box(L,.045,.045,M.fence,(x0+x1)/2,GY+hy,(z0+z1)/2,Math.atan2(dx,dz)-Math.PI/2);
+  /* --- nastri colorati tesi sopra il cortile (come nelle foto) --- */
+  const RIBBONS=[[0xF2F2EE,-12,-8],[0xE3C84A,-6,-2],[0x37B3A0,0,4],[0x3B8BD9,6,9],[0xE884B0,12,13]];
+  for(const [col,x0,x1] of RIBBONS){
+    const a=new THREE.Vector3(x0,GY+6.1,-11.4), b=new THREE.Vector3(x1,GY+4.7,11.2);
+    const mid=a.clone().lerp(b,.5); mid.y-=.5;
+    const curve=new THREE.CatmullRomCurve3([a,mid,b]);
+    const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,20,.03,5),mat(col,.6));
+    env.add(tube);
+    cy(.03,.04,4.9,M.pole,x1,GY+2.45,11.2);
   }
-  fenceRun(-22,13.5,37,13.5);
-  fenceRun(37,13.5,37,-16);
-
-  /* --- tavoli da esterno arancioni con panche --- */
-  [[26,4,.2],[30.5,7,-.15],[26.5,9.5,.4],[31,1.5,0]].forEach(([tx,tz,ry])=>{
-    box(2.2,.08,.9,M.orange,tx,GY+.72,tz,ry);
-    box(.08,.68,.8,M.greyDark,tx-.95,GY+.34,tz,ry);
-    box(.08,.68,.8,M.greyDark,tx+.95,GY+.34,tz,ry);
-    box(2.2,.06,.32,M.orange,tx-Math.sin(ry)*0- .62*Math.sin(ry+Math.PI/2),GY+.42,tz-.62*Math.cos(ry+Math.PI/2),ry);
-    box(2.2,.06,.32,M.orange,tx+.62*Math.sin(ry+Math.PI/2),GY+.42,tz+.62*Math.cos(ry+Math.PI/2),ry);
-  });
-
-  /* --- porta da calcio sul prato --- */
-  cyl(.05,.05,1.9,M.white,46,GY+.95,-6);
-  cyl(.05,.05,1.9,M.white,46,GY+.95,-10);
-  const bar=cyl(.05,.05,4.1,M.white,46,GY+1.9,-8,Math.PI/2);
-  bar.rotation.z=0;
 
   return env;
 }

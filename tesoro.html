@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>La Caccia al Tesoro del Cortile — I Giochi delle Case</title>
+<link rel="icon" href="logo.png">
+<link rel="apple-touch-icon" href="logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<!-- Unica dipendenza extra concordata: Three.js r128 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{
+  --bg:#0E1830; --bg2:#14213E; --panel:rgba(14,26,52,.92); --panelBrd:#2A4070;
+  --blu:#123E90; --gold:#D4A017; --gold2:#B8860B; --goldL:rgba(212,160,23,.14);
+  --green:#3E8E4E; --text:#F2EFE6; --muted:#9FB0CE;
+  --head:'Lexend',sans-serif; --body:'Atkinson Hyperlegible',Helvetica,Arial,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:var(--body);font-size:18px;line-height:1.6;color:var(--text);background:var(--bg);overflow:hidden}
+h1,h2,h3{font-family:var(--head)}
+button{font-family:var(--head);cursor:pointer;border:none;font-size:16px}
+.btn{padding:11px 24px;border-radius:12px;background:var(--gold);color:#241A03;font-weight:700;
+  transition:transform .15s,box-shadow .15s,opacity .15s;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 18px rgba(212,160,23,.35)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--text);border:2px solid var(--panelBrd)}
+.btn.ghost:hover{border-color:var(--gold);color:var(--gold);box-shadow:none;transform:none}
+button:focus-visible,a.btn:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+#c3d{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none}
+
+/* ---- HUD ---- */
+#hudTop{position:absolute;top:10px;left:0;right:0;display:flex;justify-content:center;gap:10px;
+  flex-wrap:wrap;pointer-events:none;padding:0 10px}
+#progressCard{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--panelBrd);
+  border-radius:14px;padding:8px 16px}
+#progressCard .lbl{font-family:var(--head);font-weight:600;font-size:15px}
+#letters{display:flex;gap:5px}
+.tok{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--head);font-weight:700;font-size:16px;background:var(--goldL);
+  border:1.5px dashed var(--panelBrd);color:var(--muted)}
+.tok.got{background:var(--gold);border:1.5px solid var(--gold);color:#241A03}
+#guideCard{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--panelBrd);
+  border-radius:14px;padding:7px 14px}
+#guideCard img{width:44px;height:44px;border-radius:10px;object-fit:cover}
+#guideCard .gn{font-family:var(--head);font-weight:700;font-size:15px}
+#guideCard .gl{font-size:12.5px;color:var(--muted)}
+#statusPill{position:absolute;left:50%;transform:translateX(-50%);bottom:88px;background:var(--blu);color:#fff;
+  font-family:var(--head);font-weight:600;font-size:16.5px;padding:10px 24px;border-radius:26px;
+  box-shadow:0 4px 14px rgba(0,0,0,.35);max-width:92vw;text-align:center;transition:background .3s,color .3s}
+#actions{position:absolute;bottom:16px;left:0;right:0;display:flex;flex-wrap:wrap;
+  justify-content:center;gap:10px;pointer-events:none}
+#actions .btn{pointer-events:auto;padding:9px 18px;font-size:14.5px}
+@media (max-width:980px){
+  #statusPill{font-size:14.5px;padding:8px 16px;bottom:96px}
+  #actions .btn{padding:8px 12px;font-size:13px}
+}
+
+/* ---- overlay ---- */
+.overlay{position:fixed;inset:0;background:rgba(6,11,24,.78);display:none;align-items:center;justify-content:center;z-index:40;padding:20px}
+.overlay.show{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--panelBrd);border-radius:20px;padding:28px 32px;max-width:660px;
+  width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:90vh;overflow:auto;text-align:center}
+.modal h2{color:var(--gold);font-size:25px;margin-bottom:8px}
+.modal p{color:var(--muted);font-size:17px}
+.guideRow{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:12px}
+.guideRow img{width:52px;height:52px;border-radius:12px;object-fit:cover}
+.guideRow span{font-family:var(--head);font-weight:700;font-size:18px}
+.zone{display:inline-block;font-family:var(--head);font-size:13px;font-weight:600;background:rgba(18,62,144,.5);
+  border:1px solid var(--panelBrd);padding:3px 14px;border-radius:14px;margin-bottom:10px}
+.speech{background:var(--panel);border:1px solid var(--panelBrd);border-radius:14px;padding:16px 18px;
+  font-size:18px;margin:10px 0 4px;line-height:1.55;text-align:left}
+.question{font-size:19.5px;font-weight:700;font-family:var(--head);margin:8px 0 16px;line-height:1.45}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:640px){.opts{grid-template-columns:1fr}}
+.opt{background:var(--panel);border:2px solid var(--panelBrd);border-radius:12px;padding:13px 16px;
+  color:var(--text);font-size:16.5px;font-family:var(--body);text-align:left;transition:border-color .15s}
+.opt:hover{border-color:var(--gold)}
+.opt.good{border-color:var(--green);background:rgba(62,142,78,.18)}
+.opt.miss{border-color:var(--gold2);background:var(--goldL)}
+.txtrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:6px 0}
+.txtrow input{font-family:var(--head);font-size:20px;letter-spacing:.12em;text-transform:uppercase;
+  background:var(--panel);border:2px solid var(--panelBrd);border-radius:12px;color:var(--text);
+  padding:11px 16px;width:min(280px,70vw);text-align:center}
+.feedback{margin-top:12px;font-size:16.5px;min-height:26px}
+.feedback.ok{color:#7BC98B}
+.feedback.amber{color:var(--gold)}
+.hintbox{background:var(--goldL);border:1px solid var(--gold2);border-radius:12px;padding:10px 14px;
+  font-size:16px;margin-top:10px;text-align:left;display:none}
+.hintbox.show{display:block}
+.mbtns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.tokreveal{display:inline-flex;align-items:center;justify-content:center;width:54px;height:54px;border-radius:14px;
+  background:var(--gold);color:#241A03;font-family:var(--head);font-weight:700;font-size:30px;margin:8px 0}
+.end-meta{background:var(--goldL);border:1px solid var(--gold2);border-radius:12px;padding:12px 16px;margin:14px 0;font-size:16px;text-align:left}
+.info-body{text-align:left;font-size:16.5px}
+.info-body h3{color:var(--gold);font-size:18px;margin:14px 0 6px}
+.info-body ul{margin-left:22px}
+.banner4{display:flex;gap:6px;justify-content:center;margin:14px 0}
+.banner4 span{width:44px;height:64px;border-radius:0 0 22px 22px;display:block}
+</style>
+</head>
+<body>
+<canvas id="c3d"></canvas>
+<div id="hudTop">
+  <div id="progressCard">
+    <span class="lbl" id="progLbl">Indizi: 0/7</span>
+    <div id="letters"></div>
+  </div>
+  <div id="guideCard">
+    <img id="guideImg" alt="">
+    <div><div class="gl">Vi guida</div><div class="gn" id="guideName"></div></div>
+  </div>
+</div>
+<div id="statusPill">…</div>
+<div id="actions"></div>
+
+<!-- introduzione -->
+<div class="overlay show" id="introOv"><div class="modal">
+  <h2>La Caccia al Tesoro del Cortile</h2>
+  <p style="margin-bottom:6px">I Giochi delle Case · Scuola Sacra Famiglia</p>
+  <div class="speech">Questa mattina, appeso alla rete di un canestro, è comparso un biglietto firmato
+  <strong>"Il Custode del Cortile"</strong>:<br><br>
+  <em>"Ho nascosto il tesoro delle quattro case. Per trovarlo dovrete guardare il vostro cortile
+  come non l'avete mai guardato: contare, misurare, orientarvi e ragionare — insieme.
+  Sette enigmi vi aspettano. Ogni enigma custodisce una lettera; le sette lettere,
+  rimesse in ordine, dicono dove scavare. Il primo indizio vi aspetta dove la palla
+  sogna di entrare…"</em></div>
+  <p style="margin-top:10px">Le quattro case esplorano <strong>insieme</strong>: trascina per girare
+  intorno al cortile, avvicinati con la rotellina o con due dita, e tocca il <strong>fascio di luce
+  dorata</strong> quando lo trovi.</p>
+  <div class="mbtns">
+    <button class="btn" id="startBtn">Si parte!</button>
+    <button class="btn ghost" id="infoBtn2">Info per i docenti</button>
+    <a class="btn ghost" href="index.html">Altri giochi</a>
+  </div>
+</div></div>
+
+<!-- indizio (dove cercare) -->
+<div class="overlay" id="clueOv"><div class="modal">
+  <div class="guideRow" id="clueGuide"></div>
+  <h2 id="clueTitle">Indizio</h2>
+  <div class="speech" id="clueText"></div>
+  <div class="mbtns"><button class="btn" id="clueGo">Andiamo a cercare!</button></div>
+</div></div>
+
+<!-- enigma -->
+<div class="overlay" id="enigmaOv"><div class="modal">
+  <div class="guideRow" id="enGuide"></div>
+  <span class="zone" id="enZone"></span>
+  <div class="question" id="enQ"></div>
+  <div class="opts" id="enOpts"></div>
+  <div class="txtrow" id="enTxt" style="display:none">
+    <input id="enInput" type="text" autocomplete="off" spellcheck="false" aria-label="Risposta">
+    <button class="btn" id="enConfirm">Conferma</button>
+  </div>
+  <div class="hintbox" id="hint1"></div>
+  <div class="hintbox" id="hint2"></div>
+  <div class="feedback" id="enFb"></div>
+  <div class="mbtns" id="enBtns">
+    <button class="btn ghost" id="hintBtn">Un aiuto?</button>
+  </div>
+</div></div>
+
+<!-- lettera conquistata -->
+<div class="overlay" id="tokenOv"><div class="modal">
+  <div class="guideRow" id="tokGuide"></div>
+  <h2>Enigma risolto!</h2>
+  <p>Avete conquistato una lettera del tesoro:</p>
+  <div class="tokreveal" id="tokLetter"></div>
+  <p id="tokLeft"></p>
+  <div class="mbtns"><button class="btn" id="tokNext">Il prossimo indizio</button></div>
+</div></div>
+
+<!-- forziere finale -->
+<div class="overlay" id="chestOv"><div class="modal">
+  <h2>Il forziere del Custode</h2>
+  <div class="speech">"Sette lettere avete raccolto, ma io le ho mescolate.
+  Rimettetele in ordine: formano <strong>il luogo dove tutto è cominciato</strong>.
+  Sussurratelo al forziere, e si aprirà."</div>
+  <div class="txtrow" style="margin-top:14px">
+    <input id="chestInput" type="text" autocomplete="off" spellcheck="false" aria-label="Parola segreta">
+    <button class="btn" id="chestConfirm">Apri il forziere</button>
+  </div>
+  <div class="feedback" id="chestFb"></div>
+  <div class="mbtns"><button class="btn ghost" id="chestLater">Torniamo a guardarci intorno</button></div>
+</div></div>
+
+<!-- finale -->
+<div class="overlay" id="endOv"><div class="modal">
+  <h2>Il tesoro delle Quattro Case!</h2>
+  <div class="banner4">
+    <span style="background:#3E7BD6"></span><span style="background:#E3A81C"></span>
+    <span style="background:#3E8E4E"></span><span style="background:#C0452F"></span>
+  </div>
+  <p>Nel forziere c'è il <strong>Gagliardetto delle Quattro Case</strong>, e un ultimo biglietto:</p>
+  <div class="speech"><em>"Il vero tesoro non era nel forziere: era imparare a guardare il vostro
+  cortile con occhi nuovi, e cercare insieme. Firmato: il Custode."</em></div>
+  <div class="end-meta"><strong>Un minuto per riflettere, tutti insieme</strong> — quale enigma vi ha
+  fatto ragionare di più? Come vi siete divisi il lavoro? Che cosa fareste in modo diverso alla
+  prossima caccia?</div>
+  <div class="mbtns">
+    <button class="btn" id="againBtn">Ricomincia</button>
+    <button class="btn ghost" id="seeChestBtn">Guarda il forziere</button>
+    <a class="btn ghost" href="index.html">Altri giochi</a>
+  </div>
+</div></div>
+
+<!-- info docenti -->
+<div class="overlay" id="infoOv"><div class="modal">
+  <h2>La Caccia al Tesoro del Cortile</h2>
+  <div class="info-body">
+    <h3>Che cos'è</h3>
+    <p>Un'esplorazione cooperativa del cortile della scuola ricostruito in 3D dalle foto reali:
+    le quattro case, insieme, seguono una catena di sette enigmi ancorati a punti veri dell'ambiente
+    (i due canestri, la tettoia colorata, le panchine sotto i platani, la porta da calcio sul prato,
+    il disco azzurro di metà campo, i nastri colorati). Ogni enigma frutta una lettera;
+    le sette lettere riordinate aprono il forziere finale.</p>
+    <h3>Cornice metodologica</h3>
+    <ul>
+      <li><strong>Apprendimento per scoperta</strong> (Bruner): le risposte sono nell'ambiente,
+      bisogna navigare, contare, osservare e confrontare.</li>
+      <li><strong>Scaffolding progressivo</strong> (Vygotskij): ogni enigma ha due aiuti graduati;
+      dopo due tentativi il primo aiuto compare da solo. L'errore non toglie nulla.</li>
+      <li><strong>Orientamento spaziale e geometria in contesto</strong>: destra/sinistra da un punto
+      di vista, perimetri, circonferenze, confronti di altezze, sul campo "vero".</li>
+      <li><strong>Collaborazione</strong>: nessun punteggio individuale; la classe ragiona a voce alta
+      e la chiusura metacognitiva è collettiva.</li>
+    </ul>
+    <h3>L'idea diventa azione</h3>
+    <p>Dopo la partita: progettate una caccia al tesoro <strong>vera</strong> nel cortile.
+    Ogni casa scrive un enigma ancorato a un luogo reale della scuola, con due aiuti graduati,
+    e le altre case la mettono alla prova.</p>
+  </div>
+  <div class="mbtns" style="margin-top:16px"><button class="btn" id="infoClose">Chiudi</button></div>
+</div></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   LA CACCIA AL TESORO DEL CORTILE — single file, vanilla JS + Three.js r128
+   Esplorazione cooperativa a enigmi nel cortile 3D (da 3.jpg).
+   ===================================================================== */
+
+const HOUSES = {
+  aquila:{ name:'Aquila Blu',    img:'AquilaBlu.png',    ui:'#3E7BD6' },
+  cero:  { name:'Cero Giallo',   img:'CeroGiallo.png',   ui:'#E3A81C' },
+  quercia:{name:'Quercia Verde', img:'QuerciaVerde.png', ui:'#3E8E4E' },
+  tasso: { name:'Tasso Rosso',   img:'TassoRosso.png',   ui:'#C0452F' },
+};
+
+/* ---------- le sette tappe (enigmi ancorati all'ambiente) ---------- */
+const GY=-.19;
+const STATIONS=[
+  { zone:'Il canestro di ovest', guide:'aquila', pos:[-15.5,0], letter:'T',
+    clue:'"Dove la palla sogna di entrare ma la rete la fa aspettare: cercate il canestro che sta su un palo tutto suo, dalla parte in cui il sole tramonta."',
+    q:'Mettetevi al centro del campo, guardando questo canestro. L’edificio giallo con il tetto rosso, da che parte vi resta?',
+    type:'choice', o:['Alla destra','Alla sinistra','Proprio davanti, oltre il canestro','Alle spalle'], k:2,
+    h1:'Portate la visuale dietro al canestro di ovest e guardate che cosa gli fa da sfondo.',
+    h2:'Non è né a destra né a sinistra: è proprio nella direzione in cui state guardando.' },
+  { zone:'La tettoia colorata', guide:'cero', pos:[-16,-3], letter:'R',
+    clue:'"Accanto al parco giochi dei piccoli c’è una tettoia con dei pannelli colorati: andate a guardarli da vicino, uno per uno."',
+    q:'Quanti colori diversi hanno i pannelli sotto la tettoia?',
+    type:'choice', o:['3','4','5','6'], k:1,
+    h1:'Avvicinatevi con lo zoom e contate i pannelli uno alla volta.',
+    h2:'Sono gli stessi colori delle quattro case!' },
+  { zone:'Le panchine sotto i platani', guide:'quercia', pos:[22,18], letter:'C',
+    clue:'"Dove ci si siede all’ombra dei grandi alberi, oltre il campo verde: il prossimo enigma è appoggiato su una panchina."',
+    q:'Le quattro mascotte fanno merenda a un tavolo quadrato. Aquila è seduta di fronte a Tasso; Cero è alla destra di Aquila. Chi è seduto alla sinistra di Aquila?',
+    type:'choice', o:['Tasso Rosso','Cero Giallo','Quercia Verde','Nessuno: il posto è vuoto'], k:2,
+    h1:'Disegnate il tavolo su un foglio: quattro lati, quattro posti. Sistemate prima Aquila e Tasso, uno di fronte all’altra.',
+    h2:'Se Cero è alla destra di Aquila e Tasso è di fronte, resta libero un solo posto: quello alla sinistra.' },
+  { zone:'La porta da calcio sul prato', guide:'tasso', pos:[3.5,31], letter:'E',
+    clue:'"Sul prato oltre la recinzione verde, due pali e una traversa aspettano un pallone diverso da quello a spicchi."',
+    q:'Il campo da basket è lungo circa 28 metri e la porta da calcio è larga circa 4 metri. Quante porte affiancate servirebbero per coprire tutto il lato lungo del campo?',
+    type:'choice', o:['5','6','7','8'], k:2,
+    h1:'È una divisione: la lunghezza del campo divisa per la larghezza della porta.',
+    h2:'28 diviso 4.' },
+  { zone:'Il disco azzurro di metà campo', guide:'aquila', pos:[1.8,0], letter:'O',
+    clue:'"Tornate al cuore del campo: il disco azzurro perfetto dove ogni partita comincia con una palla a due."',
+    q:'Il disco azzurro al centro del campo ha un raggio di 1,8 metri. Quanto misura, all’incirca, la sua circonferenza?',
+    type:'choice', o:['Circa 3,6 metri','Circa 5,6 metri','Circa 11,3 metri','Circa 22,6 metri'], k:2,
+    h1:'La circonferenza si calcola con 2 × π × raggio. π vale circa 3,14.',
+    h2:'2 × 3,14 × 1,8: viene poco più di 11.' },
+  { zone:'I nastri colorati', guide:'cero', pos:[10,12], letter:'L',
+    clue:'"Alzate gli occhi: i nastri colorati attraversano il cielo del cortile, dall’edificio bianco fino ai pali. Cercate dove scendono a terra."',
+    q:'Il Custode ha lasciato una parola mescolata sui nastri: <strong>STANCERO</strong>. Rimettete in ordine le lettere: è una cosa che in questo cortile si vede due volte!',
+    type:'text', answer:'CANESTRO',
+    h1:'È un oggetto del campo da basket. La parola comincia con la C.',
+    h2:'Ci si fa… canestro.' },
+  { zone:'Il canestro sul traliccio', guide:'quercia', pos:[15.5,0], letter:'I',
+    clue:'"L’altro canestro del campo non ha un palo tutto suo: qualcuno lo tiene sospeso in aria. Andate a scoprire chi."',
+    q:'Osservate bene i due canestri del campo, prima uno e poi l’altro: che cosa li rende diversi?',
+    type:'choice', o:['Sono perfettamente uguali','Uno sta su un palo, l’altro è appeso a una struttura d’acciaio','Uno è senza tabellone','Uno è rivolto verso il prato'], k:1,
+    h1:'Guardateli di profilo: seguite con gli occhi che cosa regge ciascun tabellone.',
+    h2:'Da una parte un palo solo; dall’altra due montanti e un braccio di metallo.' },
+];
+const FINAL_WORD='CORTILE';
+
+/* =====================================================================
+   SCENA 3D — cortile della scuola (stessa ricostruzione di scacchi.html)
+   ===================================================================== */
+const canvas=document.getElementById('c3d');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x4B85D8);
+scene.fog=new THREE.Fog(0xA9C8EC,70,150);
+const camera=new THREE.PerspectiveCamera(46,1,.1,320);
+const camCtl={theta:.35,phi:.9,radius:18,target:new THREE.Vector3(0,.1,0)};
+function applyCamera(){
+  const {theta,phi,radius,target}=camCtl;
+  camera.position.set(
+    target.x+radius*Math.sin(phi)*Math.sin(theta),
+    target.y+radius*Math.cos(phi),
+    target.z+radius*Math.sin(phi)*Math.cos(theta));
+  camera.lookAt(target);
+}
+function resize(){
+  const w=window.innerWidth,h=window.innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize);
+scene.add(new THREE.HemisphereLight(0xCFE4FF,0x77875F,.8));
+const sun=new THREE.DirectionalLight(0xFFF3D8,1.0);
+sun.position.set(28,36,18);
+sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-34; sun.shadow.camera.right=34;
+sun.shadow.camera.top=34; sun.shadow.camera.bottom=-34;
+sun.shadow.camera.far=120;
+scene.add(sun);
+const fill=new THREE.DirectionalLight(0x9FB9E4,.3);
+fill.position.set(-24,16,-26);
+scene.add(fill);
+
+function buildEnvironment(scene){
+  const env=new THREE.Group(); scene.add(env);
+  const mat=(c,r,m)=>new THREE.MeshStandardMaterial({color:c,roughness:r===undefined?.85:r,metalness:m||0});
+  const M={
+    asphalt:mat(0x9BA1A6,1), grass:mat(0x6BA24E,1), turf:mat(0x55884A,1),
+    white:mat(0xF2F2EE,.7), facade:mat(0xE9E7E0,.9),
+    glass:mat(0x9FBDD3,.3,.45),
+    yellow:mat(0xE4B85C,.9), cream:mat(0xEFE2C0,.9),
+    roof:mat(0xA5553F,.9), roofBlue:mat(0x5E7E9B,.7), dark:mat(0x4A4F55,.8),
+    pole:mat(0x7A8288,.6,.4), steel:mat(0x99A1A9,.5,.55), duct:mat(0xC2C7CC,.5,.4),
+    trunk:mat(0x6B4A2F,1), leafA:mat(0x4E8C3A,1), leafB:mat(0x5FA047,1), leafC:mat(0x3F7A31,1),
+    fenceV:mat(0x4E7D50,.7,.3), ring:mat(0xE85D2A,.5,.3), wood:mat(0x9A7248,.85),
+    casaB:mat(0x3E7BD6,.8), casaG:mat(0xE3A81C,.8), casaV:mat(0x3E8E4E,.8), casaR:mat(0xC0452F,.8),
+  };
+  const box=(w,h,d,m,x,y,z,ry,rx,rz)=>{
+    const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);
+    o.position.set(x,y,z);
+    if(ry)o.rotation.y=ry; if(rx)o.rotation.x=rx; if(rz)o.rotation.z=rz;
+    o.castShadow=true; o.receiveShadow=true; env.add(o); return o;
+  };
+  const cy=(r1,r2,h,m,x,y,z,rx)=>{
+    const o=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,12),m);
+    o.position.set(x,y,z);
+    if(rx)o.rotation.x=rx;
+    o.castShadow=true; env.add(o); return o;
+  };
+
+  /* --- suolo: asfalto del cortile + grande prato a sud --- */
+  const asph=new THREE.Mesh(new THREE.PlaneGeometry(260,260),M.asphalt);
+  asph.rotation.x=-Math.PI/2; asph.position.y=GY-.03; asph.receiveShadow=true; env.add(asph);
+  const lawn=new THREE.Mesh(new THREE.PlaneGeometry(96,62),M.grass);
+  lawn.rotation.x=-Math.PI/2; lawn.position.set(10,GY-.015,43); lawn.receiveShadow=true; env.add(lawn);
+
+  /* --- il campo vero: bordeaux, aree celesti, disco centrale pieno --- */
+  const W=38,H=21,PX=32;
+  const cv=document.createElement('canvas'); cv.width=W*PX; cv.height=H*PX;
+  const g=cv.getContext('2d');
+  const X=x=>(x+W/2)*PX, Z=z=>(z+H/2)*PX;
+  g.fillStyle='#6B8CA6'; g.fillRect(0,0,cv.width,cv.height);
+  g.fillStyle='#8A4136'; g.fillRect(X(-16),Z(-8.5),32*PX,17*PX);
+  g.strokeStyle='#F5F2EA'; g.lineWidth=5; g.lineCap='round';
+  for(const s of [-1,1]){
+    g.fillStyle='#7E99AC';
+    g.fillRect(Math.min(X(s*16),X(s*10.2)),Z(-2.45),Math.abs(X(s*16)-X(s*10.2)),4.9*PX);
+    g.strokeRect(Math.min(X(s*16),X(s*10.2)),Z(-2.45),Math.abs(X(s*16)-X(s*10.2)),4.9*PX);
+    g.beginPath(); g.arc(X(s*10.2),Z(0),1.8*PX,0,Math.PI*2); g.stroke();
+    g.beginPath();
+    g.arc(X(s*14.8),Z(0),6.6*PX,(s>0?Math.PI/2+.15:-Math.PI/2+.15),(s>0?Math.PI*1.5-.15:Math.PI/2-.15));
+    g.stroke();
+  }
+  g.fillStyle='#7E99AC';
+  g.beginPath(); g.arc(X(0),Z(0),1.8*PX,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(X(0),Z(0),1.8*PX,0,Math.PI*2); g.stroke();
+  g.strokeRect(X(-16),Z(-8.5),32*PX,17*PX);
+  g.beginPath(); g.moveTo(X(0),Z(-8.5)); g.lineTo(X(0),Z(8.5)); g.stroke();
+  const courtTex=new THREE.CanvasTexture(cv);
+  courtTex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  const court=new THREE.Mesh(new THREE.PlaneGeometry(W,H),
+    new THREE.MeshStandardMaterial({map:courtTex,roughness:.92}));
+  court.rotation.x=-Math.PI/2; court.position.y=GY+.01; court.receiveShadow=true; env.add(court);
+
+  /* --- canestro di ovest: su palo --- */
+  cy(.12,.14,3.6,M.pole,-16.6,GY+1.8,0);
+  box(1.5,.12,.12,M.pole,-15.85,GY+3.35,0);
+  box(.1,1.15,1.9,M.dark,-15.28,GY+3.35,0);
+  box(.06,1.05,1.8,M.white,-15.2,GY+3.35,0);
+  const rimW=new THREE.Mesh(new THREE.TorusGeometry(.23,.02,8,20),M.ring);
+  rimW.rotation.x=Math.PI/2; rimW.position.set(-14.9,GY+3.05,0); env.add(rimW);
+  const netW=new THREE.Mesh(new THREE.CylinderGeometry(.23,.13,.4,10,1,true),
+    new THREE.MeshBasicMaterial({color:0xF2F2EE,wireframe:true}));
+  netW.position.set(-14.9,GY+2.83,0); env.add(netW);
+
+  /* --- canestro di est: appeso al traliccio d'acciaio (come nel video) --- */
+  cy(.09,.11,4.6,M.steel,18.4,GY+2.3,-1.7);
+  cy(.09,.11,4.6,M.steel,18.4,GY+2.3,1.7);
+  box(.18,.18,3.8,M.steel,18.4,GY+4.6,0);
+  box(3.6,.16,.16,M.steel,16.7,GY+4.6,0);
+  box(.12,1.1,.12,M.steel,15.15,GY+4.0,0);
+  const tie=cy(.03,.03,2.5,M.steel,16.6,GY+5.15,0); tie.rotation.z=1.12;
+  box(.1,1.15,1.9,M.dark,15.28,GY+3.35,0);
+  box(.06,1.05,1.8,M.white,15.2,GY+3.35,0);
+  const rimE=new THREE.Mesh(new THREE.TorusGeometry(.23,.02,8,20),M.ring);
+  rimE.rotation.x=Math.PI/2; rimE.position.set(14.9,GY+3.05,0); env.add(rimE);
+  const netE=new THREE.Mesh(new THREE.CylinderGeometry(.23,.13,.4,10,1,true),
+    new THREE.MeshBasicMaterial({color:0xF2F2EE,wireframe:true}));
+  netE.position.set(14.9,GY+2.83,0); env.add(netE);
+
+  /* --- ali moderne bianche con grandi vetrate (nord ed est) --- */
+  function modernWing(cx,cz,len,alongX,face){
+    const w=alongX?len:9.5, d=alongX?9.5:len;
+    box(w,9.8,d,M.facade,cx,GY+4.9,cz);
+    box(w+.4,.3,d+.4,M.dark,cx,GY+9.9,cz);
+    const fx=alongX?cx:cx+face*4.85, fz=alongX?cz+face*4.85:cz;
+    if(alongX) box(len-2,2.6,.16,M.glass,cx,GY+1.4,fz+face*.02);
+    else box(.16,2.6,len-2,M.glass,fx+face*.02,GY+1.4,cz);
+    for(const wy of [GY+4.7,GY+7.5]){
+      if(alongX) box(len-3,1.7,.12,M.glass,cx,wy,fz+face*.01);
+      else box(.12,1.7,len-3,M.glass,fx+face*.01,wy,cz);
+      const n=Math.floor((len-3)/2.2);
+      for(let i=0;i<=n;i++){
+        const t=-(len-3)/2+i*((len-3)/n);
+        if(alongX) box(.1,1.7,.15,M.white,cx+t,wy,fz+face*.02);
+        else box(.15,1.7,.1,M.white,fx+face*.02,wy,cz+t);
+      }
+    }
+    const nc=Math.floor((len-2)/2.6);
+    for(let i=0;i<=nc;i++){
+      const t=-(len-2)/2+i*((len-2)/nc);
+      if(alongX) box(.14,2.6,.2,M.white,cx+t,GY+1.4,fz+face*.03);
+      else box(.2,2.6,.14,M.white,fx+face*.03,GY+1.4,cz+t);
+    }
+  }
+  modernWing(1,-16.2,44,true,1);      // ala nord
+  modernWing(24.8,-3,22,false,-1);    // ala est
+  /* accenti colorati sulle cornici delle finestre (come nelle foto) */
+  box(.12,1.7,.5,M.casaR,6,GY+4.7,-11.28);
+  box(.12,1.7,.5,M.casaG,-8,GY+7.5,-11.28);
+  box(.12,1.7,.5,M.casaV,14,GY+7.5,-11.28);
+  box(.5,1.7,.12,M.casaG,19.88,GY+4.7,2);
+  /* tubazioni verticali dell'ala est */
+  for(const dz of [-6.5,-5.2,-3.9]) cy(.2,.2,8.8,M.duct,19.85,GY+4.4,dz);
+
+  /* --- edificio giallo con tetto rosso (ovest) + blocco crema --- */
+  box(9.5,6.2,16,M.yellow,-25.2,GY+3.1,-1);
+  box(9.7,1.5,15.6,M.yellow,-25.2,GY+6.6,-1);
+  box(5.4,.14,17,M.roof,-23.2,GY+7.05,-1,0,0,.42);
+  box(5.4,.14,17,M.roof,-27.2,GY+7.05,-1,0,0,-.42);
+  box(.3,.14,17.2,M.roof,-25.2,GY+8.05,-1);
+  for(const wy of [GY+2.2,GY+4.7])
+    for(let zz=-7;zz<=5;zz+=2.4)
+      box(.12,1.3,1.1,M.white,-20.42,wy,zz);
+  box(8.5,8.8,9.5,M.cream,-25.5,GY+4.4,-14.8);
+  box(8.9,.3,9.9,M.dark,-25.5,GY+8.9,-14.8);
+  for(const wy of [GY+3.2,GY+6.2])
+    for(let zz=-17.8;zz<=-11.8;zz+=2)
+      box(.12,1.2,1,M.white,-21.22,wy,zz);
+  /* corpo basso di raccordo con tetto in lamiera blu */
+  box(4.2,3,7,M.cream,-21,GY+1.5,-9.5);
+  box(4.8,.12,7.6,M.roofBlue,-21,GY+3.3,-9.5,0,0,.2);
+
+  /* --- tettoia con i pannelli colorati (davanti all'edificio giallo) --- */
+  box(3,.16,11,M.dark,-18.4,GY+2.7,-2.5);
+  for(const zz of [-7.5,-5,-2.5,0,2.5]) cy(.08,.08,2.7,M.white,-17.1,GY+1.35,zz);
+  [M.casaR,M.casaV,M.casaB,M.casaG].forEach((pm,i)=>{
+    box(.12,1.05,1.6,pm,-19.7,GY+.55,-6.5+i*2);
+  });
+
+  /* --- parco giochi dell'infanzia con staccionata bianca (angolo NO) --- */
+  for(let px=-19;px<=-13;px+=.45) box(.06,.7,.06,M.white,px,GY+.35,-9.4);
+  box(6.2,.05,.05,M.white,-16,GY+.62,-9.4);
+  for(let pz=-11;pz<=-9.6;pz+=.45) box(.06,.7,.06,M.white,-13,GY+.35,pz);
+  box(1.2,1,1.1,M.casaR,-17.5,GY+.5,-10.4);
+  box(1.4,.08,.7,M.casaV,-17.5,GY+1.15,-10.7,0,.5);
+  box(1.4,.08,.7,M.casaV,-17.5,GY+1.15,-10.1,0,-.5);
+  box(.8,.1,1.6,M.casaV,-14.8,GY+.6,-10.3,0,.55);
+  box(.6,.9,.08,M.casaG,-14.8,GY+.45,-9.55);
+
+  /* --- campo verde da volley con rete e porticine (a sud) --- */
+  const turf=new THREE.Mesh(new THREE.PlaneGeometry(26,10),M.turf);
+  turf.rotation.x=-Math.PI/2; turf.position.set(-1,GY+.008,16.2); turf.receiveShadow=true; env.add(turf);
+  box(18,.012,.08,M.white,-1,GY+.02,11.7);
+  box(18,.012,.08,M.white,-1,GY+.02,20.7);
+  box(.08,.012,9,M.white,-10,GY+.02,16.2);
+  box(.08,.012,9,M.white,8,GY+.02,16.2);
+  cy(.05,.05,2.4,M.pole,-1,GY+1.2,11.9);
+  cy(.05,.05,2.4,M.pole,-1,GY+1.2,20.5);
+  const vnet=new THREE.Mesh(new THREE.BoxGeometry(.04,.8,8.6),
+    new THREE.MeshBasicMaterial({color:0xF2F2EE,wireframe:true}));
+  vnet.position.set(-1,GY+1.8,16.2); env.add(vnet);
+  for(const gx of [-9.7,7.7]){
+    cy(.05,.05,1.6,M.white,gx,GY+.8,14.7);
+    cy(.05,.05,1.6,M.white,gx,GY+.8,17.7);
+    box(.1,.1,3.1,M.white,gx,GY+1.6,16.2);
+  }
+
+  /* --- recinzione verde tra il campo e il prato --- */
+  for(let fx2=-16;fx2<=12;fx2+=2.8) cy(.04,.04,1.1,M.fenceV,fx2,GY+.55,21.8);
+  for(const hy of [.35,.7,1.02]) box(28.5,.04,.04,M.fenceV,-2,GY+hy,21.8);
+
+  /* --- prato: porta da calcio, filare di platani con le panchine --- */
+  cy(.06,.06,2.1,M.white,1,GY+1.05,31);
+  cy(.06,.06,2.1,M.white,6,GY+1.05,31);
+  box(5.2,.1,.1,M.white,3.5,GY+2.1,31);
+  for(let i=0;i<6;i++){
+    const tz=13+i*6.2, lm=[M.leafA,M.leafB,M.leafC][i%3];
+    cy(.28,.4,4.4,M.trunk,24.5,GY+2.2,tz);
+    const s1=new THREE.Mesh(new THREE.SphereGeometry(2.4,10,8),lm);
+    s1.position.set(24.5,GY+6,tz); s1.castShadow=true; env.add(s1);
+    const s2=new THREE.Mesh(new THREE.SphereGeometry(1.7,10,8),lm);
+    s2.position.set(25.5,GY+4.9,tz+.7); s2.castShadow=true; env.add(s2);
+    box(2.1,.08,.45,M.wood,22.3,GY+.48,tz+2);
+    box(.08,.44,.4,M.dark,21.5,GY+.24,tz+2);
+    box(.08,.44,.4,M.dark,23.1,GY+.24,tz+2);
+  }
+  /* alberi sparsi e siepe di fondo */
+  [[-6,34],[-2,47],[34,28],[40,42],[14,53],[-14,28]].forEach(([tx,tz],i)=>{
+    const lm=[M.leafA,M.leafB,M.leafC][i%3];
+    cy(.2,.3,2.4,M.trunk,tx,GY+1.2,tz);
+    const s1=new THREE.Mesh(new THREE.SphereGeometry(1.6,10,8),lm);
+    s1.position.set(tx,GY+3.6,tz); s1.castShadow=true; env.add(s1);
+  });
+  for(let hx=-8;hx<=48;hx+=14) box(12,1.3,1,M.leafC,hx,GY+.65,58);
+
+  /* --- nastri colorati tesi sopra il cortile (come nelle foto) --- */
+  const RIBBONS=[[0xF2F2EE,-12,-8],[0xE3C84A,-6,-2],[0x37B3A0,0,4],[0x3B8BD9,6,9],[0xE884B0,12,13]];
+  for(const [col,x0,x1] of RIBBONS){
+    const a=new THREE.Vector3(x0,GY+6.1,-11.4), b=new THREE.Vector3(x1,GY+4.7,11.2);
+    const mid=a.clone().lerp(b,.5); mid.y-=.5;
+    const curve=new THREE.CatmullRomCurve3([a,mid,b]);
+    const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,20,.03,5),mat(col,.6));
+    env.add(tube);
+    cy(.03,.04,4.9,M.pole,x1,GY+2.45,11.2);
+  }
+
+  return env;
+}
+buildEnvironment(scene);
+
+/* ---------- faro dell'indizio attivo ---------- */
+const beacon=new THREE.Group(); scene.add(beacon);
+const beamMat=new THREE.MeshBasicMaterial({color:0xF3C64A,transparent:true,opacity:.28,depthWrite:false});
+const beam=new THREE.Mesh(new THREE.CylinderGeometry(.5,.9,7,16,1,true),beamMat);
+beam.position.y=GY+3.5; beacon.add(beam);
+const bRing=new THREE.Mesh(new THREE.TorusGeometry(1.1,.07,10,32),
+  new THREE.MeshBasicMaterial({color:0xE7C34A}));
+bRing.rotation.x=Math.PI/2; bRing.position.y=GY+.1; beacon.add(bRing);
+const bOrb=new THREE.Mesh(new THREE.SphereGeometry(.28,14,12),
+  new THREE.MeshStandardMaterial({color:0xFFD75E,emissive:0xE0A22A,emissiveIntensity:1}));
+bOrb.position.y=GY+1.6; beacon.add(bOrb);
+const bHit=new THREE.Mesh(new THREE.SphereGeometry(2.4,8,6),
+  new THREE.MeshBasicMaterial({visible:false}));
+bHit.position.y=GY+2; beacon.add(bHit);
+function placeBeacon(st){
+  beacon.visible=true;
+  beacon.position.set(st.pos[0],0,st.pos[1]);
+}
+
+/* ---------- forziere ---------- */
+const chest=new THREE.Group(); chest.visible=false; scene.add(chest);
+const woodMat=new THREE.MeshStandardMaterial({color:0x7A4A26,roughness:.7});
+const goldMat=new THREE.MeshStandardMaterial({color:0xE7C34A,roughness:.35,metalness:.6});
+(function(){
+  const base=new THREE.Mesh(new THREE.BoxGeometry(1.6,.8,1),woodMat);
+  base.position.y=GY+.4; base.castShadow=true; chest.add(base);
+  for(const dx of [-.55,0,.55]){
+    const b=new THREE.Mesh(new THREE.BoxGeometry(.12,.84,1.04),goldMat);
+    b.position.set(dx,GY+.4,0); chest.add(b);
+  }
+  const lid=new THREE.Group(); lid.position.set(0,GY+.8,-.5); chest.add(lid);
+  const lidM=new THREE.Mesh(new THREE.BoxGeometry(1.6,.22,1),woodMat);
+  lidM.position.set(0,.11,.5); lidM.castShadow=true; lid.add(lidM);
+  const lock=new THREE.Mesh(new THREE.BoxGeometry(.24,.3,.1),goldMat);
+  lock.position.set(0,GY+.75,.52); chest.add(lock);
+  const glow=new THREE.Mesh(new THREE.SphereGeometry(.3,12,10),
+    new THREE.MeshStandardMaterial({color:0xFFE79A,emissive:0xE8B62A,emissiveIntensity:1}));
+  glow.position.set(0,GY+.75,0); glow.visible=false; chest.add(glow);
+  chest.userData={lid,glow};
+})();
+chest.position.set(0,0,0);
+
+/* ---------- animazioni ---------- */
+const tweens=[];
+function tween(dur,fn,done){ tweens.push({t:0,dur,fn,done}); }
+const easeIO=k=>k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+function animCam(to,dur){
+  const from={theta:camCtl.theta,phi:camCtl.phi,radius:camCtl.radius,
+    tx:camCtl.target.x,ty:camCtl.target.y,tz:camCtl.target.z};
+  let dTheta=(to.theta!==undefined?to.theta:from.theta)-from.theta;
+  while(dTheta>Math.PI)dTheta-=Math.PI*2;
+  while(dTheta<-Math.PI)dTheta+=Math.PI*2;
+  tween(dur||900,e=>{
+    camCtl.theta=from.theta+dTheta*e;
+    if(to.phi!==undefined)   camCtl.phi=from.phi+(to.phi-from.phi)*e;
+    if(to.radius!==undefined)camCtl.radius=from.radius+(to.radius-from.radius)*e;
+    if(to.target){
+      camCtl.target.x=from.tx+(to.target[0]-from.tx)*e;
+      camCtl.target.y=from.ty+(to.target[1]-from.ty)*e;
+      camCtl.target.z=from.tz+(to.target[2]-from.tz)*e;
+    }
+    applyCamera();
+  });
+}
+function focusStation(st){
+  const [x,z]=st.pos;
+  animCam({theta:Math.atan2(x,z), radius:17, phi:.95, target:[x*.5,.1,z*.5]});
+}
+function resetView(){ animCam({radius:18, phi:.9, target:[0,.1,0]}); }
+
+/* =====================================================================
+   STATO E INTERFACCIA
+   ===================================================================== */
+const $=id=>document.getElementById(id);
+let idx=0, solved=0, errors=0, phase='intro';   // intro | search | enigma | chest | done
+const norm=s=>s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]/g,'');
+
+function guideOf(st){ return HOUSES[st.guide]; }
+function setGuide(st){
+  const gd=guideOf(st);
+  $('guideImg').src=gd.img; $('guideImg').alt=gd.name;
+  $('guideName').textContent=gd.name;
+  $('guideName').style.color=gd.ui;
+}
+function guideRow(el,st){
+  const gd=guideOf(st);
+  el.innerHTML='<img src="'+gd.img+'" alt=""><span style="color:'+gd.ui+'">'+gd.name+'</span>';
+}
+function buildLetters(){
+  const box=$('letters'); box.innerHTML='';
+  STATIONS.forEach((st,i)=>{
+    const t=document.createElement('span');
+    t.className='tok'; t.id='tok'+i; t.textContent='?';
+    box.appendChild(t);
+  });
+}
+function updateProgress(){
+  $('progLbl').textContent='Indizi: '+solved+'/'+STATIONS.length;
+  STATIONS.forEach((st,i)=>{
+    const t=$('tok'+i);
+    if(i<solved){ t.textContent=st.letter; t.classList.add('got'); }
+  });
+}
+function setStatus(text,amber){
+  const el=$('statusPill');
+  el.textContent=text;
+  if(amber){ el.style.background='var(--gold)'; el.style.color='#241A03'; }
+  else { el.style.background='var(--blu)'; el.style.color='#fff'; }
+}
+function setActions(list){
+  const bar=$('actions'); bar.innerHTML='';
+  for(const [label,fn] of list){
+    const b=document.createElement('button');
+    b.className='btn ghost'; b.textContent=label;
+    b.addEventListener('click',fn);
+    bar.appendChild(b);
+  }
+  const home=document.createElement('a');
+  home.className='btn ghost'; home.href='index.html'; home.textContent='Altri giochi';
+  bar.appendChild(home);
+}
+
+/* ---------- flusso ---------- */
+function showClue(){
+  const st=STATIONS[idx];
+  setGuide(st);
+  guideRow($('clueGuide'),st);
+  $('clueTitle').textContent='Indizio '+(idx+1)+' di '+STATIONS.length;
+  $('clueText').innerHTML=st.clue;
+  $('clueOv').classList.add('show');
+}
+function startSearch(){
+  const st=STATIONS[idx];
+  phase='search';
+  placeBeacon(st);
+  setStatus('Cercate il fascio di luce: '+st.zone.toLowerCase());
+  setActions([
+    ['Rileggi l’indizio',showClue],
+    ['Mostrami la zona',()=>focusStation(st)],
+    ['Vista dall’alto',()=>animCam({phi:.35,radius:30,target:[0,.1,0]})],
+    ['Torna al campo',resetView],
+    ['Info',()=>$('infoOv').classList.add('show')],
+  ]);
+}
+function openEnigma(){
+  const st=STATIONS[idx];
+  phase='enigma'; errors=0;
+  guideRow($('enGuide'),st);
+  $('enZone').textContent=st.zone;
+  $('enQ').innerHTML=st.q;
+  $('enFb').textContent=''; $('enFb').className='feedback';
+  $('hint1').textContent='Aiuto 1 — '+st.h1; $('hint1').classList.remove('show');
+  $('hint2').textContent='Aiuto 2 — '+st.h2; $('hint2').classList.remove('show');
+  $('hintBtn').disabled=false;
+  const opts=$('enOpts'); opts.innerHTML='';
+  if(st.type==='choice'){
+    opts.style.display='grid'; $('enTxt').style.display='none';
+    st.o.forEach((o,i)=>{
+      const b=document.createElement('button');
+      b.className='opt'; b.textContent=o;
+      b.addEventListener('click',()=>answer(i===st.k,b,st));
+      opts.appendChild(b);
+    });
+  } else {
+    opts.style.display='none'; $('enTxt').style.display='flex';
+    $('enInput').value='';
+    setTimeout(()=>$('enInput').focus(),120);
+  }
+  $('enigmaOv').classList.add('show');
+}
+function answer(ok,btn,st){
+  if(phase!=='enigma') return;
+  if(ok){
+    phase='token';
+    if(btn) btn.classList.add('good');
+    $('enFb').textContent='Esatto! Ottimo lavoro di squadra.';
+    $('enFb').className='feedback ok';
+    setTimeout(()=>{
+      $('enigmaOv').classList.remove('show');
+      revealToken(st);
+    },700);
+  } else {
+    errors++;
+    if(btn){ btn.classList.add('miss'); btn.disabled=true; }
+    $('enFb').textContent=errors===1
+      ? 'Non ancora: osservate meglio e riprovate. Nessuna penalità!'
+      : 'Ci siete quasi: vi apro un aiuto.';
+    $('enFb').className='feedback amber';
+    if(errors>=2) $('hint1').classList.add('show');
+    if(errors>=3) $('hint2').classList.add('show');
+  }
+}
+function revealToken(st){
+  guideRow($('tokGuide'),st);
+  $('tokLetter').textContent=st.letter;
+  solved++; updateProgress();
+  const left=STATIONS.length-solved;
+  $('tokLeft').textContent=left>0
+    ? (left===1?'Manca una sola lettera!':'Mancano ancora '+left+' lettere.')
+    : 'Avete tutte e sette le lettere: il forziere vi aspetta!';
+  $('tokenOv').classList.add('show');
+}
+function nextStep(){
+  $('tokenOv').classList.remove('show');
+  idx++;
+  if(idx<STATIONS.length){ showClue(); }
+  else openChestPhase();
+}
+function openChestPhase(){
+  phase='chest';
+  beacon.visible=false;
+  chest.visible=true;
+  chest.scale.setScalar(.01);
+  tween(700,e=>chest.scale.setScalar(.01+.99*e));
+  animCam({theta:.5,phi:1.0,radius:9,target:[0,.3,0]});
+  setStatus('Un forziere è apparso al centro del campo!',true);
+  setActions([
+    ['Apri il forziere',()=>$('chestOv').classList.add('show')],
+    ['Vista dall’alto',()=>animCam({phi:.35,radius:30,target:[0,.1,0]})],
+    ['Info',()=>$('infoOv').classList.add('show')],
+  ]);
+  setTimeout(()=>$('chestOv').classList.add('show'),1200);
+}
+function tryChest(){
+  const val=norm($('chestInput').value);
+  if(!val) return;
+  if(val===FINAL_WORD){
+    $('chestFb').textContent='La serratura scatta…';
+    $('chestFb').className='feedback ok';
+    setTimeout(()=>{
+      $('chestOv').classList.remove('show');
+      openChestAnim();
+    },600);
+  } else {
+    $('chestFb').textContent='Il forziere resta chiuso. Guardate le lettere in alto: che parola formano, rimesse in ordine?';
+    $('chestFb').className='feedback amber';
+  }
+}
+function openChestAnim(){
+  phase='done';
+  const {lid,glow}=chest.userData;
+  glow.visible=true;
+  tween(900,e=>{ lid.rotation.x=-1.5*e; });
+  /* coriandoli dorati */
+  const bits=[];
+  for(let i=0;i<26;i++){
+    const b=new THREE.Mesh(new THREE.BoxGeometry(.09,.09,.02),goldMat);
+    b.position.set(0,GY+.8,0);
+    const a=i/26*Math.PI*2;
+    b.userData={vx:Math.cos(a)*(1+i%3),vy:2.6+(i%5)*.5,vz:Math.sin(a)*(1+(i+1)%3)};
+    scene.add(b); bits.push(b);
+  }
+  tween(1600,e=>{
+    for(const b of bits){
+      const {vx,vy,vz}=b.userData;
+      b.position.set(vx*e*1.4, GY+.8+vy*e-4.2*e*e, vz*e*1.4);
+      b.rotation.x=e*7; b.rotation.y=e*5;
+    }
+  },()=>bits.forEach(b=>scene.remove(b)));
+  setStatus('Il tesoro è vostro!',true);
+  setActions([['Rivedi il cortile',resetView],['Info',()=>$('infoOv').classList.add('show')]]);
+  setTimeout(()=>$('endOv').classList.add('show'),1900);
+}
+
+/* ---------- input: orbita + zoom + clic sul faro ---------- */
+const pointers=new Map();
+let dragDist=0, pinchD0=0;
+canvas.addEventListener('pointerdown',e=>{
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  dragDist=0;
+  if(pointers.size===2){
+    const [a,b]=[...pointers.values()];
+    pinchD0=Math.hypot(a.x-b.x,a.y-b.y);
+  }
+});
+canvas.addEventListener('pointermove',e=>{
+  if(!pointers.has(e.pointerId)) return;
+  const prev=pointers.get(e.pointerId);
+  const dx=e.clientX-prev.x, dy=e.clientY-prev.y;
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===1){
+    dragDist+=Math.abs(dx)+Math.abs(dy);
+    if(dragDist>8){
+      camCtl.theta-=dx*.0055;
+      camCtl.phi=Math.min(1.42,Math.max(.18,camCtl.phi-dy*.004));
+      applyCamera();
+    }
+  } else if(pointers.size===2){
+    const [a,b]=[...pointers.values()];
+    const d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(pinchD0>0){
+      camCtl.radius=Math.min(50,Math.max(6,camCtl.radius*(pinchD0/d)));
+      pinchD0=d; applyCamera();
+    }
+    dragDist=99;
+  }
+});
+canvas.addEventListener('pointerup',e=>{
+  pointers.delete(e.pointerId);
+  if(dragDist<=8) pick(e.clientX,e.clientY);
+});
+canvas.addEventListener('pointercancel',e=>pointers.delete(e.pointerId));
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  camCtl.radius=Math.min(50,Math.max(6,camCtl.radius+e.deltaY*.014));
+  applyCamera();
+},{passive:false});
+const raycaster=new THREE.Raycaster(), ndc=new THREE.Vector2();
+function pick(cx,cy){
+  ndc.set(cx/window.innerWidth*2-1,-(cy/window.innerHeight)*2+1);
+  raycaster.setFromCamera(ndc,camera);
+  if(phase==='search' && beacon.visible &&
+     raycaster.intersectObjects(beacon.children,false).length) openEnigma();
+  else if(phase==='chest' && chest.visible &&
+     raycaster.intersectObjects(chest.children,true).length) $('chestOv').classList.add('show');
+}
+
+/* ---------- collegamenti UI ---------- */
+$('startBtn').addEventListener('click',()=>{ $('introOv').classList.remove('show'); showClue(); });
+$('clueGo').addEventListener('click',()=>{ $('clueOv').classList.remove('show'); startSearch(); });
+$('hintBtn').addEventListener('click',function(){
+  if(!$('hint1').classList.contains('show')) $('hint1').classList.add('show');
+  else { $('hint2').classList.add('show'); this.disabled=true; }
+});
+$('enConfirm').addEventListener('click',()=>{
+  const st=STATIONS[idx];
+  answer(norm($('enInput').value)===st.answer,null,st);
+});
+$('enInput').addEventListener('keydown',e=>{ if(e.key==='Enter') $('enConfirm').click(); });
+$('tokNext').addEventListener('click',nextStep);
+$('chestConfirm').addEventListener('click',tryChest);
+$('chestInput').addEventListener('keydown',e=>{ if(e.key==='Enter') tryChest(); });
+$('chestLater').addEventListener('click',()=>$('chestOv').classList.remove('show'));
+$('againBtn').addEventListener('click',()=>location.reload());
+$('seeChestBtn').addEventListener('click',()=>{
+  $('endOv').classList.remove('show');
+  animCam({theta:.5,phi:1.05,radius:7,target:[0,.3,0]});
+  setActions([['Rileggi il biglietto',()=>$('endOv').classList.add('show')],
+              ['Rivedi il cortile',resetView],
+              ['Info',()=>$('infoOv').classList.add('show')]]);
+});
+$('infoBtn2').addEventListener('click',()=>$('infoOv').classList.add('show'));
+$('infoClose').addEventListener('click',()=>$('infoOv').classList.remove('show'));
+
+buildLetters(); updateProgress();
+setStatus('Leggete il biglietto del Custode…');
+setActions([['Info',()=>$('infoOv').classList.add('show')]]);
+beacon.visible=false;
+
+/* hook di test da console */
+window.__tesoro={
+  cam:(t,p,r)=>{ camCtl.theta=t; camCtl.phi=p; camCtl.radius=r; applyCamera(); return 'ok'; },
+  st:()=>({idx,solved,phase}),
+  start:()=>{ $('introOv').classList.remove('show'); showClue(); return 'ok'; },
+  go:()=>{ $('clueOv').classList.remove('show'); startSearch(); return 'ok'; },
+  open:()=>{ if(idx>=STATIONS.length) return 'fase forziere'; openEnigma(); return 'ok'; },
+  solve:()=>{ const st=STATIONS[idx];
+    if(phase!=='enigma') return 'non in enigma';
+    answer(true,null,st); return 'ok'; },
+  next:()=>{ nextStep(); return 'ok'; },
+  chestWord:w=>{ $('chestInput').value=w; tryChest(); return 'ok'; },
+};
+
+/* ---------- render loop ---------- */
+let prev=performance.now();
+function loop(now){
+  const dt=now-prev; prev=now;
+  for(let i=tweens.length-1;i>=0;i--){
+    const tw=tweens[i];
+    tw.t+=dt;
+    const k=Math.min(1,tw.t/tw.dur);
+    tw.fn(easeIO(k));
+    if(k>=1){ tweens.splice(i,1); tw.done&&tw.done(); }
+  }
+  if(beacon.visible){
+    const s=1+Math.sin(now*.004)*.12;
+    bRing.scale.setScalar(s);
+    bOrb.position.y=GY+1.6+Math.sin(now*.003)*.25;
+    beamMat.opacity=.22+Math.sin(now*.005)*.08;
+  }
+  renderer.render(scene,camera);
+  requestAnimationFrame(loop);
+}
+resize(); applyCamera();
+requestAnimationFrame(loop);
+/* watchdog: se il browser sospende requestAnimationFrame (tab in secondo
+   piano, multitasking su iPad), le animazioni proseguono lo stesso */
+setInterval(()=>{ if(performance.now()-prev>250) loop(performance.now()); },250);
+</script>
+</body>
+</html>
