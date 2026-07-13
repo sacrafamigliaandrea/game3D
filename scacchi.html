@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Scacchi delle Case — I Giochi delle Case</title>
+<link rel="icon" href="logo.png">
+<link rel="apple-touch-icon" href="logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<!-- Unica dipendenza extra concordata: Three.js r128 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{
+  --bg:#0E1830; --bg2:#14213E; --panel:rgba(14,26,52,.90); --panelBrd:#2A4070;
+  --blu:#123E90; --gold:#D4A017; --gold2:#B8860B; --goldL:rgba(212,160,23,.14);
+  --text:#F2EFE6; --muted:#9FB0CE;
+  --head:'Lexend',sans-serif; --body:'Atkinson Hyperlegible',Helvetica,Arial,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:var(--body);font-size:18px;line-height:1.65;color:var(--text);background:var(--bg);overflow:hidden}
+h1,h2,h3{font-family:var(--head)}
+button{font-family:var(--head);cursor:pointer;border:none;font-size:16px}
+.btn{padding:12px 26px;border-radius:12px;background:var(--gold);color:#241A03;font-weight:700;letter-spacing:.02em;transition:transform .15s,box-shadow .15s,opacity .15s;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 18px rgba(212,160,23,.35)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--text);border:2px solid var(--panelBrd)}
+.btn.ghost:hover{border-color:var(--gold);color:var(--gold);box-shadow:none;transform:none}
+button:focus-visible,.house-card:focus-visible,a.btn:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+/* ======== SCHERMATA SELEZIONE ======== */
+.screen{position:fixed;inset:0}
+#selectScreen{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:22px;padding:24px;
+  overflow-y:auto;background:radial-gradient(1200px 700px at 50% -10%, #1B2F5C 0%, var(--bg) 60%)}
+#selectScreen::after{content:'';flex:0 0 6px}
+.brand{display:flex;align-items:center;gap:14px}
+.brand img{width:52px;height:52px;border-radius:12px;object-fit:cover}
+.brand .t1{font-family:var(--head);font-weight:700;font-size:30px;color:var(--gold);letter-spacing:.01em}
+.brand .t2{font-size:15px;color:var(--muted)}
+.sub{color:var(--muted);max-width:620px;text-align:center;font-size:17px}
+.houses{display:grid;grid-template-columns:repeat(4,minmax(180px,240px));gap:18px;width:min(1100px,94vw)}
+@media (max-width:900px){.houses{grid-template-columns:repeat(2,1fr)}}
+.house-card{position:relative;border-radius:16px;overflow:hidden;cursor:pointer;background:var(--bg2);
+  border:3px solid var(--panelBrd);transition:transform .18s,border-color .18s}
+.house-card img{width:100%;aspect-ratio:3/2;object-fit:cover;display:block}
+.house-card .nm{font-family:var(--head);font-weight:600;text-align:center;padding:10px 6px;font-size:18px}
+.house-card:hover{transform:translateY(-4px)}
+.house-card .pick{position:absolute;top:10px;left:10px;background:var(--gold);color:#241A03;font-family:var(--head);
+  font-weight:700;font-size:13px;padding:4px 12px;border-radius:20px;display:none}
+.house-card.sel .pick{display:block}
+.vsRow{display:flex;align-items:center;gap:18px;min-height:64px}
+.vsRow .slot{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--panelBrd);
+  border-radius:14px;padding:8px 16px;min-width:210px;justify-content:center}
+.vsRow .slot img{width:44px;height:44px;border-radius:10px;object-fit:cover}
+.vsRow .slot span{font-family:var(--head);font-weight:600}
+.vsRow .vs{font-family:var(--head);font-weight:700;font-size:26px;color:var(--gold)}
+.slot .ph{color:var(--muted);font-size:15px}
+.selBtns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+
+/* ======== SCHERMATA DI GIOCO ======== */
+#gameScreen{display:none}
+#c3d{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;
+  padding:14px 16px;pointer-events:none;gap:12px}
+.player{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--panelBrd);
+  border-radius:16px;padding:10px 14px;min-width:250px;max-width:340px;pointer-events:auto;transition:box-shadow .25s}
+.player img{width:56px;height:56px;border-radius:12px;object-fit:cover}
+.player .pname{font-family:var(--head);font-weight:700;font-size:18px;line-height:1.25}
+.player .plabel{font-size:13px;color:var(--muted)}
+.tray{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;min-height:20px;max-width:210px}
+.cap-badge{min-width:22px;height:22px;padding:0 4px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--head);font-weight:700;font-size:11px;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+#statusPill{position:absolute;left:50%;transform:translateX(-50%);top:18px;background:var(--blu);color:#fff;
+  font-family:var(--head);font-weight:600;font-size:17px;padding:10px 26px;border-radius:26px;
+  box-shadow:0 4px 14px rgba(0,0,0,.35);white-space:nowrap;transition:background .3s,color .3s}
+#controls{position:absolute;bottom:16px;left:0;right:0;display:flex;flex-wrap:wrap;
+  justify-content:center;gap:10px;pointer-events:none}
+#controls .btn{pointer-events:auto}
+#controls .btn{padding:10px 18px;font-size:15px}
+@media (max-width:980px){
+  #statusPill{top:auto;bottom:118px;font-size:15px;padding:8px 18px}
+  #controls{bottom:10px;max-width:96vw}
+  #controls .btn{padding:8px 12px;font-size:13px}
+  .player{min-width:0;padding:8px 10px}
+  .player img{width:42px;height:42px}
+  .player .pname{font-size:15px}
+}
+
+/* ======== OVERLAY (promozione / fine / info) ======== */
+.overlay{position:fixed;inset:0;background:rgba(6,11,24,.78);display:none;align-items:center;justify-content:center;z-index:40;padding:20px}
+.overlay.show{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--panelBrd);border-radius:20px;padding:30px 34px;max-width:640px;
+  width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:88vh;overflow:auto}
+.modal h2{color:var(--gold);font-size:26px;margin-bottom:8px}
+.modal p{color:var(--muted);font-size:17px}
+.promo-row{display:flex;gap:14px;justify-content:center;margin-top:22px;flex-wrap:wrap}
+.promo-btn{display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--panel);
+  border:2px solid var(--panelBrd);border-radius:14px;padding:16px 20px;color:var(--text);min-width:110px;transition:border-color .15s,transform .15s}
+.promo-btn:hover{border-color:var(--gold);transform:translateY(-3px)}
+.promo-btn .glyph{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:var(--head);font-weight:700;font-size:20px;color:#fff}
+.end-imgs{display:flex;justify-content:center;gap:16px;margin:18px 0}
+.end-imgs img{width:180px;border-radius:14px;object-fit:cover}
+.end-meta{background:var(--goldL);border:1px solid var(--gold2);border-radius:12px;padding:12px 16px;margin:16px 0;font-size:16px;color:var(--text)}
+.end-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.info-body{text-align:left;font-size:16.5px}
+.info-body h3{color:var(--gold);font-size:18px;margin:16px 0 6px}
+.info-body ul{margin-left:22px}
+.info-body li{margin-bottom:4px}
+</style>
+</head>
+<body>
+
+<!-- ============ SELEZIONE DELLE CASE ============ -->
+<div class="screen" id="selectScreen">
+  <div class="brand">
+    <img src="logo.png" alt="Logo Scuola Sacra Famiglia">
+    <div>
+      <div class="t1">Scacchi delle Case</div>
+      <div class="t2">I Giochi delle Case · Scuola Sacra Famiglia · Orzinuovi</div>
+    </div>
+  </div>
+  <p class="sub">La scacchiera è pronta al centro del campo da basket del cortile.
+  Scegli le <strong>due case</strong> che si sfideranno: ogni casa schiera tutti i pezzi
+  con il volto della propria mascotte.</p>
+  <div class="houses" id="housesGrid"></div>
+  <div class="vsRow" id="vsRow">
+    <div class="slot" id="slot0"><span class="ph">Prima casa…</span></div>
+    <div class="vs">VS</div>
+    <div class="slot" id="slot1"><span class="ph">Seconda casa…</span></div>
+  </div>
+  <div class="selBtns">
+    <button class="btn" id="startBtn" disabled>Inizia la sfida</button>
+    <a class="btn ghost" href="index.html">Tutti i giochi</a>
+    <button class="btn ghost" id="infoBtn2">Info per i docenti</button>
+  </div>
+</div>
+
+<!-- ============ PARTITA ============ -->
+<div class="screen" id="gameScreen">
+  <canvas id="c3d"></canvas>
+  <div id="hud">
+    <div class="player" id="pl0">
+      <img id="pl0img" alt="">
+      <div>
+        <div class="plabel">Casa 1</div>
+        <div class="pname" id="pl0name"></div>
+        <div class="tray" id="tray0"></div>
+      </div>
+    </div>
+    <div class="player" id="pl1">
+      <img id="pl1img" alt="">
+      <div>
+        <div class="plabel">Casa 2</div>
+        <div class="pname" id="pl1name"></div>
+        <div class="tray" id="tray1"></div>
+      </div>
+    </div>
+  </div>
+  <div id="statusPill">…</div>
+  <div id="controls">
+    <button class="btn ghost" id="undoBtn">Annulla mossa</button>
+    <button class="btn ghost" id="viewBtn">Vista di chi muove</button>
+    <button class="btn ghost" id="autoBtn">Auto-vista: ON</button>
+    <button class="btn ghost" id="newBtn">Nuove squadre</button>
+    <a class="btn ghost" href="index.html">Altri giochi</a>
+    <button class="btn ghost" id="infoBtn">Info</button>
+  </div>
+</div>
+
+<!-- ============ PROMOZIONE ============ -->
+<div class="overlay" id="promoOv">
+  <div class="modal">
+    <h2>Promozione</h2>
+    <p>Il pedone è arrivato in fondo alla scacchiera: scegli in quale pezzo trasformarlo.</p>
+    <div class="promo-row" id="promoRow"></div>
+  </div>
+</div>
+
+<!-- ============ FINE PARTITA ============ -->
+<div class="overlay" id="endOv">
+  <div class="modal">
+    <h2 id="endTitle"></h2>
+    <p id="endMsg"></p>
+    <div class="end-imgs" id="endImgs"></div>
+    <div class="end-meta"><strong>Prima della rivincita</strong> — un minuto di riflessione a voce:
+      quale mossa cambieresti e perché? Che cosa non ha funzionato nel tuo piano?</div>
+    <div class="end-btns">
+      <button class="btn" id="rematchBtn">Rivincita</button>
+      <button class="btn ghost" id="changeBtn">Cambia squadre</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ INFO DOCENTI ============ -->
+<div class="overlay" id="infoOv">
+  <div class="modal">
+    <h2>Scacchi delle Case</h2>
+    <div class="info-body">
+      <h3>Che cos'è</h3>
+      <p>Una scacchiera 3D allestita nel cortile della scuola, sul campo da basket, con regole
+      ufficiali complete (arrocco, presa al varco, promozione, scacco matto, stallo e patte).
+      Due studenti giocano sullo stesso schermo scegliendo due delle quattro case:
+      ogni pezzo ha il volto della mascotte della propria squadra.</p>
+      <h3>Cornice metodologica</h3>
+      <ul>
+        <li><strong>Problem solving e pensiero strategico</strong>: pianificare, anticipare, ricalibrare.</li>
+        <li><strong>Apprendimento per scoperta</strong> (Bruner): le mosse legali si esplorano toccando i pezzi.</li>
+        <li><strong>Metacognizione</strong>: a fine partita l'app propone la domanda "quale mossa cambieresti?".</li>
+        <li><strong>Fair play</strong>: si parla di mosse che non hanno funzionato, mai di "colpe".</li>
+      </ul>
+      <h3>Come si usa</h3>
+      <ul>
+        <li>Tocca un pezzo della tua casa: i cerchi verdi sono le mosse, gli anelli oro le catture.</li>
+        <li>Trascina per girare intorno al campo, pizzica o usa la rotellina per avvicinarti
+        ed esplorare il cortile.</li>
+        <li>Con l'auto-vista il campo ruota da solo verso chi deve muovere.</li>
+      </ul>
+    </div>
+    <div class="end-btns" style="margin-top:18px">
+      <button class="btn" id="infoClose">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+   SCACCHI DELLE CASE — single file, vanilla JS + Three.js r128
+   Scacchiera al centro del campo da basket del cortile (da 3.jpg),
+   pezzi caratterizzati come le mascotte delle 4 case.
+   ===================================================================== */
+
+/* ---------- LE QUATTRO CASE ---------- */
+const HOUSES = [
+  { id:'aquila',  name:'Aquila Blu',    img:'AquilaBlu.png',
+    ui:'#3E7BD6', uiText:'#FFFFFF', main:0x2E5FB4, accent:0xC9D6E8, metal:.35, rough:.45 },
+  { id:'cero',    name:'Cero Giallo',   img:'CeroGiallo.png',
+    ui:'#E3A81C', uiText:'#2A1F08', main:0xE0A422, accent:0x5A4326, metal:.05, rough:.55 },
+  { id:'quercia', name:'Quercia Verde', img:'QuerciaVerde.png',
+    ui:'#3E8E4E', uiText:'#FFFFFF', main:0x6E4B2A, accent:0x3E8E4E, metal:.05, rough:.85 },
+  { id:'tasso',   name:'Tasso Rosso',   img:'TassoRosso.png',
+    ui:'#C0452F', uiText:'#FFFFFF', main:0xAF3D2B, accent:0xEFE8DA, metal:.10, rough:.55 },
+];
+const LETTER  = { p:'P', n:'C', b:'A', r:'T', q:'Rg', k:'Re' };  // iniziali italiane
+const PIECE_NAME = { p:'Pedone', n:'Cavallo', b:'Alfiere', r:'Torre', q:'Regina', k:'Re' };
+
+/* =====================================================================
+   1. MOTORE DI SCACCHI
+   Scacchiera: array di 64 celle (indice = riga*8+colonna, riga 0 in basso
+   = casa 1). Pezzo: {t:'p|n|b|r|q|k', c:0|1}.
+   ===================================================================== */
+const KN = [[1,2],[2,1],[2,-1],[1,-2],[-1,-2],[-2,-1],[-2,1],[-1,2]];
+const KG = [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
+const RD = [[1,0],[-1,0],[0,1],[0,-1]];
+const BD = [[1,1],[1,-1],[-1,1],[-1,-1]];
+const inB = (r,c)=> r>=0 && r<8 && c>=0 && c<8;
+
+function newState(){
+  const b = new Array(64).fill(null);
+  const back = ['r','n','b','q','k','b','n','r'];
+  for(let c=0;c<8;c++){
+    b[c]      = {t:back[c], c:0};
+    b[8+c]    = {t:'p', c:0};
+    b[48+c]   = {t:'p', c:1};
+    b[56+c]   = {t:back[c], c:1};
+  }
+  return { board:b, turn:0, ep:null, half:0,
+           rights:[{k:true,q:true},{k:true,q:true}] };
+}
+function cloneSt(st){
+  return { board:st.board.slice(), turn:st.turn, ep:st.ep, half:st.half,
+           rights:[{...st.rights[0]},{...st.rights[1]}] };
+}
+function findKing(bd,c){
+  for(let i=0;i<64;i++){ const p=bd[i]; if(p && p.t==='k' && p.c===c) return i; }
+  return -1;
+}
+/* la casella sq è attaccata da un pezzo del colore by? */
+function attacked(bd, sq, by){
+  const r=sq>>3, c=sq&7;
+  for(const [dr,dc] of KN){
+    const nr=r+dr, nc=c+dc;
+    if(inB(nr,nc)){ const p=bd[nr*8+nc]; if(p && p.c===by && p.t==='n') return true; }
+  }
+  for(const [dr,dc] of KG){
+    const nr=r+dr, nc=c+dc;
+    if(inB(nr,nc)){ const p=bd[nr*8+nc]; if(p && p.c===by && p.t==='k') return true; }
+  }
+  const dir = by===0 ? 1 : -1;                 // i pedoni di by attaccano verso dir
+  for(const dc of [-1,1]){
+    const nr=r-dir, nc=c+dc;
+    if(inB(nr,nc)){ const p=bd[nr*8+nc]; if(p && p.c===by && p.t==='p') return true; }
+  }
+  for(const [dr,dc] of RD){
+    let nr=r+dr, nc=c+dc;
+    while(inB(nr,nc)){
+      const p=bd[nr*8+nc];
+      if(p){ if(p.c===by && (p.t==='r'||p.t==='q')) return true; break; }
+      nr+=dr; nc+=dc;
+    }
+  }
+  for(const [dr,dc] of BD){
+    let nr=r+dr, nc=c+dc;
+    while(inB(nr,nc)){
+      const p=bd[nr*8+nc];
+      if(p){ if(p.c===by && (p.t==='b'||p.t==='q')) return true; break; }
+      nr+=dr; nc+=dc;
+    }
+  }
+  return false;
+}
+/* mosse pseudo-legali dal quadrato from */
+function pseudo(st, from){
+  const bd=st.board, p=bd[from];
+  if(!p) return [];
+  const r=from>>3, c=from&7, ms=[];
+  const add=(to,fl)=> ms.push(Object.assign({from,to},fl||{}));
+  if(p.t==='p'){
+    const dir = p.c===0?1:-1, start = p.c===0?1:6, last = p.c===0?7:0;
+    const f1 = from + dir*8;
+    if(f1>=0 && f1<64 && !bd[f1]){
+      add(f1, {promo:(f1>>3)===last});
+      const f2 = from + dir*16;
+      if(r===start && !bd[f2]) add(f2, {dbl:true});
+    }
+    for(const dc of [-1,1]){
+      const nc=c+dc; if(nc<0||nc>7) continue;
+      const nr=r+dir; if(nr<0||nr>7) continue;
+      const to=nr*8+nc, q=bd[to];
+      if(q && q.c!==p.c) add(to, {promo:nr===((p.c===0)?7:0)});
+      else if(!q && to===st.ep) add(to, {ep:true});
+    }
+  } else if(p.t==='n' || p.t==='k'){
+    const D = p.t==='n'?KN:KG;
+    for(const [dr,dc] of D){
+      const nr=r+dr, nc=c+dc;
+      if(!inB(nr,nc)) continue;
+      const q=bd[nr*8+nc];
+      if(!q || q.c!==p.c) add(nr*8+nc);
+    }
+    if(p.t==='k'){
+      const rank = p.c===0?0:7, ki = rank*8+4, foe = 1-p.c;
+      if(from===ki && !attacked(bd,ki,foe)){
+        const rk = rank*8;
+        if(st.rights[p.c].k && !bd[ki+1] && !bd[ki+2] &&
+           bd[rk+7] && bd[rk+7].t==='r' && bd[rk+7].c===p.c &&
+           !attacked(bd,ki+1,foe) && !attacked(bd,ki+2,foe)) add(ki+2,{castle:'k'});
+        if(st.rights[p.c].q && !bd[ki-1] && !bd[ki-2] && !bd[ki-3] &&
+           bd[rk] && bd[rk].t==='r' && bd[rk].c===p.c &&
+           !attacked(bd,ki-1,foe) && !attacked(bd,ki-2,foe)) add(ki-2,{castle:'q'});
+      }
+    }
+  } else {
+    const D = p.t==='r'?RD : p.t==='b'?BD : RD.concat(BD);
+    for(const [dr,dc] of D){
+      let nr=r+dr, nc=c+dc;
+      while(inB(nr,nc)){
+        const q=bd[nr*8+nc];
+        if(!q) add(nr*8+nc);
+        else { if(q.c!==p.c) add(nr*8+nc); break; }
+        nr+=dr; nc+=dc;
+      }
+    }
+  }
+  return ms;
+}
+/* applica la mossa (mutando st); restituisce l'eventuale pezzo catturato */
+function applyMove(st, m, promoT){
+  const bd=st.board, p=bd[m.from];
+  let cap = bd[m.to];
+  if(m.ep){ const cs = m.to + (p.c===0?-8:8); cap = bd[cs]; bd[cs]=null; }
+  bd[m.to] = m.promo ? {t:promoT||'q', c:p.c} : p;
+  bd[m.from] = null;
+  st.ep = m.dbl ? m.from + (p.c===0?8:-8) : null;
+  if(m.castle){
+    const rk = p.c===0?0:56;
+    if(m.castle==='k'){ bd[rk+5]=bd[rk+7]; bd[rk+7]=null; }
+    else              { bd[rk+3]=bd[rk];   bd[rk]=null;  }
+  }
+  if(p.t==='k'){ st.rights[p.c].k=false; st.rights[p.c].q=false; }
+  if(p.t==='r'){
+    if(m.from === (p.c===0?7:63))  st.rights[p.c].k=false;
+    if(m.from === (p.c===0?0:56))  st.rights[p.c].q=false;
+  }
+  if(cap && !m.ep){
+    const oc = 1-p.c;
+    if(m.to === (oc===0?7:63)) st.rights[oc].k=false;
+    if(m.to === (oc===0?0:56)) st.rights[oc].q=false;
+  }
+  st.half = (cap || p.t==='p') ? 0 : st.half+1;
+  st.turn = 1-st.turn;
+  return cap;
+}
+function inCheckColor(bd,c){ const k=findKing(bd,c); return k>=0 && attacked(bd,k,1-c); }
+function legalMoves(st, from){
+  const p=st.board[from];
+  if(!p || p.c!==st.turn) return [];
+  return pseudo(st,from).filter(m=>{
+    const s2=cloneSt(st); applyMove(s2,m,'q');
+    return !inCheckColor(s2.board, p.c);
+  });
+}
+function anyLegal(st){
+  for(let i=0;i<64;i++){
+    const p=st.board[i];
+    if(p && p.c===st.turn && legalMoves(st,i).length) return true;
+  }
+  return false;
+}
+function insufficientMaterial(bd){
+  const minors=[0,0];
+  for(let i=0;i<64;i++){
+    const p=bd[i]; if(!p || p.t==='k') continue;
+    if(p.t==='p'||p.t==='r'||p.t==='q') return false;
+    minors[p.c]++;
+  }
+  return minors[0]<=1 && minors[1]<=1;
+}
+/* perft di verifica (usato solo dai test in console) */
+function perft(st, d){
+  if(d===0) return 1;
+  let n=0;
+  for(let i=0;i<64;i++){
+    const p=st.board[i];
+    if(!p || p.c!==st.turn) continue;
+    for(const m of legalMoves(st,i)){
+      const promos = m.promo ? ['q','r','b','n'] : [null];
+      for(const pt of promos){
+        const s2=cloneSt(st); applyMove(s2,m,pt);
+        n += perft(s2, d-1);
+      }
+    }
+  }
+  return n;
+}
+window.__scacchi = {
+  perft:(d)=>perft(newState(),d),
+  foolsMate(){                       // 1.f3 e5 2.g4 Rgh4# → deve dare matto
+    const s=newState();
+    for(const [f,t] of [[13,21],[52,36],[14,30],[59,31]]){
+      const m=legalMoves(s,f).find(m=>m.to===t);
+      if(!m) return 'ILLEGALE '+f+'-'+t;
+      applyMove(s,m);
+    }
+    return { scacco:inCheckColor(s.board,s.turn), mosse:anyLegal(s) };
+  }
+};
+
+/* =====================================================================
+   2. SCENA 3D
+   ===================================================================== */
+const canvas = document.getElementById('c3d');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x4B85D8);
+scene.fog = new THREE.Fog(0xA9C8EC, 70, 150);
+
+const camera = new THREE.PerspectiveCamera(46, 1, .1, 320);
+const camCtl = { theta:0, phi:.95, radius:12.5, target:new THREE.Vector3(0,.15,0) };
+function applyCamera(){
+  const {theta,phi,radius,target}=camCtl;
+  camera.position.set(
+    target.x + radius*Math.sin(phi)*Math.sin(theta),
+    target.y + radius*Math.cos(phi),
+    target.z + radius*Math.sin(phi)*Math.cos(theta));
+  camera.lookAt(target);
+}
+function resize(){
+  const w=window.innerWidth, h=window.innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize);
+
+scene.add(new THREE.HemisphereLight(0xCFE4FF, 0x77875F, .8));
+const sun = new THREE.DirectionalLight(0xFFF3D8, 1.0);
+sun.position.set(28,36,18);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-34; sun.shadow.camera.right=34;
+sun.shadow.camera.top=34;   sun.shadow.camera.bottom=-34;
+sun.shadow.camera.far=120;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x9FB9E4,.3);
+fill.position.set(-24,16,-26);
+scene.add(fill);
+
+/* =====================================================================
+   2a. AMBIENTE: IL CORTILE DELLA SCUOLA (ricostruzione da 3.jpg)
+   Campo da basket terracotta con aree e bordo blu, edificio scolastico
+   grigio a due piani con porticato, casetta crema con scala, balcone e
+   festoni colorati, filari di alberi, recinzione, tavoli arancioni,
+   porta da calcio sul prato. Condiviso con monopoli.html.
+   ===================================================================== */
+const GY=-.19;   // quota del suolo di gioco
+function buildEnvironment(scene){
+  const env=new THREE.Group(); scene.add(env);
+  const mat=(c,r,m)=>new THREE.MeshStandardMaterial({color:c,roughness:r===undefined?.85:r,metalness:m||0});
+  const M={
+    asphalt:mat(0x9AA2A9,1), grass:mat(0x69A24C,1),
+    grey:mat(0xA8A6A0,.9), greyDark:mat(0x5E6770,.9), band:mat(0x2F4258,.6),
+    white:mat(0xF2F2EE,.7), cream:mat(0xEFE6C6,.9), roof:mat(0xA5553F,.9),
+    pole:mat(0x7A8288,.6,.4), orange:mat(0xD9822B,.8), wood:mat(0x8A5A33,.9),
+    trunk:mat(0x6B4A2F,1), leafA:mat(0x4E8C3A,1), leafB:mat(0x5FA047,1), leafC:mat(0x3F7A31,1),
+    fence:mat(0x8A9199,.6,.5), ring:mat(0xE85D2A,.5,.3),
+  };
+  const box=(w,h,d,m,x,y,z,ry,rx)=>{
+    const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);
+    o.position.set(x,y,z);
+    if(ry)o.rotation.y=ry; if(rx)o.rotation.x=rx;
+    o.castShadow=true; o.receiveShadow=true; env.add(o); return o;
+  };
+  const cyl=(r1,r2,h,m,x,y,z,rx,rz)=>{
+    const o=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,12),m);
+    o.position.set(x,y,z);
+    if(rx)o.rotation.x=rx; if(rz)o.rotation.z=rz;
+    o.castShadow=true; env.add(o); return o;
+  };
+
+  /* --- suolo: asfalto + prato --- */
+  const asph=new THREE.Mesh(new THREE.PlaneGeometry(260,260),M.asphalt);
+  asph.rotation.x=-Math.PI/2; asph.position.y=GY-.03; asph.receiveShadow=true; env.add(asph);
+  const grass=new THREE.Mesh(new THREE.PlaneGeometry(70,110),M.grass);
+  grass.rotation.x=-Math.PI/2; grass.position.set(60,GY-.015,-4); grass.receiveShadow=true; env.add(grass);
+
+  /* --- campo da basket: texture disegnata (terracotta + blu + linee) --- */
+  const W=38, H=21, PX=32;
+  const cv=document.createElement('canvas'); cv.width=W*PX; cv.height=H*PX;
+  const g=cv.getContext('2d');
+  const X=x=>(x+W/2)*PX, Z=z=>(z+H/2)*PX;
+  g.fillStyle='#5E7E9B'; g.fillRect(0,0,cv.width,cv.height);          // bordo blu
+  g.fillStyle='#C4674C'; g.fillRect(X(-16),Z(-8.5),32*PX,17*PX);      // terracotta
+  g.strokeStyle='#F5F2EA'; g.lineWidth=5; g.lineCap='round';
+  g.strokeRect(X(-16),Z(-8.5),32*PX,17*PX);                           // perimetro
+  g.beginPath(); g.moveTo(X(0),Z(-8.5)); g.lineTo(X(0),Z(8.5)); g.stroke(); // metà campo
+  g.beginPath(); g.arc(X(0),Z(0),1.8*PX,0,Math.PI*2); g.stroke();     // cerchio centrale
+  for(const s of [-1,1]){                                             // aree e archi
+    const bx=s*16, key=s*10.2, ft=s*10.2, basket=s*14.8;
+    g.fillStyle='#5E7E9B';
+    g.fillRect(Math.min(X(bx),X(key)),Z(-2.45),Math.abs(X(bx)-X(key)),4.9*PX);
+    g.strokeRect(Math.min(X(bx),X(key)),Z(-2.45),Math.abs(X(bx)-X(key)),4.9*PX);
+    g.beginPath(); g.arc(X(ft),Z(0),1.8*PX,0,Math.PI*2); g.stroke();  // lunetta
+    g.beginPath();                                                    // arco da tre
+    g.arc(X(basket),Z(0),6.6*PX,(s>0?Math.PI/2+.15:-Math.PI/2+.15),(s>0?Math.PI*1.5-.15:Math.PI/2-.15));
+    g.stroke();
+  }
+  const courtTex=new THREE.CanvasTexture(cv);
+  courtTex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  const court=new THREE.Mesh(new THREE.PlaneGeometry(W,H),
+    new THREE.MeshStandardMaterial({map:courtTex,roughness:.92}));
+  court.rotation.x=-Math.PI/2; court.position.y=GY+.01; court.receiveShadow=true; env.add(court);
+
+  /* --- canestri regolamentari alle due estremità --- */
+  for(const s of [-1,1]){
+    const px=s*17.2;
+    cyl(.12,.14,3.6,M.pole,px,GY+1.8,0);
+    box(1.5,.12,.12,M.pole,px-s*.75,GY+3.35,0);
+    box(.06,1.05,1.8,M.white,px-s*1.55,GY+3.35,0);
+    box(.1,1.15,1.9,M.greyDark,px-s*1.48,GY+3.35,0);
+    const rim=new THREE.Mesh(new THREE.TorusGeometry(.23,.02,8,20),M.ring);
+    rim.rotation.x=Math.PI/2; rim.position.set(px-s*1.85,GY+3.05,0); env.add(rim);
+    const net=new THREE.Mesh(new THREE.CylinderGeometry(.23,.13,.4,10,1,true),
+      new THREE.MeshBasicMaterial({color:0xF2F2EE,wireframe:true}));
+    net.position.set(px-s*1.85,GY+2.83,0); env.add(net);
+  }
+  /* canestro da allenamento in secondo piano (a destra nella foto) */
+  cyl(.1,.12,2.8,M.pole,24,GY+1.4,11);
+  box(1,.1,.1,M.pole,23.5,GY+2.7,11);
+  box(.05,.8,1.2,M.greyDark,22.95,GY+2.7,11);
+  const rim2=new THREE.Mesh(new THREE.TorusGeometry(.2,.02,8,18),M.ring);
+  rim2.rotation.x=Math.PI/2; rim2.position.set(22.7,GY+2.45,11); env.add(rim2);
+
+  /* --- edificio scolastico a L (grigio, due piani, porticato) --- */
+  function wing(cx,cz,len,alongX){
+    const w=alongX?len:9, d=alongX?9:len;
+    box(w,7.6,d,M.grey,cx,GY+3.8,cz);
+    box(w+(alongX?.4:.45),.3,d+(alongX?.45:.4),M.greyDark,cx,GY+7.7,cz);
+    const fx=alongX?cx:cx+4.53, fz=alongX?cz+4.53:cz;
+    // fascia finestre del piano superiore
+    if(alongX) box(len-4,1.7,.12,M.band,cx,GY+5.3,fz);
+    else       box(.12,1.7,len-4,M.band,fx,GY+5.3,cz);
+    const n=Math.floor((len-4)/3.4);
+    for(let i=0;i<=n;i++){
+      const t=-(len-4)/2+i*((len-4)/n);
+      if(alongX) box(.14,1.7,.16,M.white,cx+t,GY+5.3,fz+.01);
+      else       box(.16,1.7,.14,M.white,fx+.01,GY+5.3,cz+t);
+    }
+    // piano terra: fondo scuro + pilastri chiari (porticato)
+    if(alongX) box(len-2,2.8,.14,M.greyDark,cx,GY+1.4,fz-.1);
+    else       box(.14,2.8,len-2,M.greyDark,fx-.1,GY+1.4,cz);
+    const nc=Math.floor((len-2)/3.8);
+    for(let i=0;i<=nc;i++){
+      const t=-(len-2)/2+i*((len-2)/nc);
+      if(alongX) box(.4,2.8,.4,M.white,cx+t,GY+1.4,fz+.15);
+      else       box(.4,2.8,.4,M.white,fx+.15,GY+1.4,cz+t);
+    }
+  }
+  wing(-27,-1,46,false);   // ala dietro il canestro di sinistra
+  wing(2,-20,44,true);     // ala lunga di fondo
+
+  /* --- casetta crema con tetto, balcone, scala e festoni --- */
+  box(8,6.8,8,M.cream,-16.5,GY+3.4,-13.5);
+  box(7.9,1.7,7.9,M.cream,-16.5,GY+7.2,-13.5);   // sottotetto (chiude i timpani)
+  box(8.8,.14,4.9,M.roof,-16.5,GY+7.55,-15.45,0,.38);
+  box(8.8,.14,4.9,M.roof,-16.5,GY+7.55,-11.55,0,-.38);
+  box(9,.14,.3,M.roof,-16.5,GY+8.42,-13.5);
+  box(6,.16,1.8,M.cream,-16.5,GY+3.5,-8.6);            // balcone
+  box(6,.06,.06,M.fence,-16.5,GY+4.45,-7.75);
+  for(let i=0;i<=12;i++) box(.05,.95,.05,M.fence,-19.5+i*.5,GY+3.98,-7.75);
+  for(let i=0;i<9;i++)                                  // scala
+    box(1.5,.14,.5,M.cream,-12.9,GY+3.3-i*.38,-8.2+i*.46);
+  /* festoni colorati dal balcone verso gli alberi: passano alti sopra il
+     campo (come nella foto) senza proiettare ombre sulla scacchiera */
+  const ends=[[-25,GY+4.6,7,0xE84393],[-21,GY+4.4,11,0x37B36B],[-26,GY+4.2,2,0x3B8BD9]];
+  for(const [ex,ey,ez,col] of ends){
+    const a=new THREE.Vector3(-13.5,GY+4.6,-8.2), b=new THREE.Vector3(ex,ey,ez);
+    const mid=a.clone().lerp(b,.5); mid.y-=.7;
+    const curve=new THREE.CatmullRomCurve3([a,mid,b]);
+    const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,24,.055,6),mat(col,.6));
+    env.add(tube);
+    cyl(.04,.05,ey-GY,M.pole,ex,(ey+GY)/2,ez);
+  }
+
+  /* --- filari di alberi --- */
+  const trees=[[-20,17],[-14,18.5],[-8,17.5],[-2,18],[4,17],[10,18.5],[16,17.5],[22,18],[28,17],[34,18],
+               [40,14],[46,10],[52,4],[54,-4],[52,-12],[46,-18],[40,-22]];
+  trees.forEach(([tx,tz],i)=>{
+    const lm=[M.leafA,M.leafB,M.leafC][i%3];
+    cyl(.22,.32,2.4,M.trunk,tx,GY+1.2,tz);
+    const s1=new THREE.Mesh(new THREE.SphereGeometry(1.7,10,8),lm);
+    s1.position.set(tx,GY+3.7,tz); s1.castShadow=true; env.add(s1);
+    const s2=new THREE.Mesh(new THREE.SphereGeometry(1.2,10,8),lm);
+    s2.position.set(tx+.9,GY+3,tz+.5); s2.castShadow=true; env.add(s2);
+  });
+
+  /* --- recinzione metallica --- */
+  function fenceRun(x0,z0,x1,z1){
+    const dx=x1-x0, dz=z1-z0, L=Math.hypot(dx,dz), n=Math.round(L/3.2);
+    for(let i=0;i<=n;i++) cyl(.05,.05,1.15,M.fence,x0+dx*i/n,GY+.57,z0+dz*i/n);
+    for(const hy of [.35,.7,1.05])
+      box(L,.045,.045,M.fence,(x0+x1)/2,GY+hy,(z0+z1)/2,Math.atan2(dx,dz)-Math.PI/2);
+  }
+  fenceRun(-22,13.5,37,13.5);
+  fenceRun(37,13.5,37,-16);
+
+  /* --- tavoli da esterno arancioni con panche --- */
+  [[26,4,.2],[30.5,7,-.15],[26.5,9.5,.4],[31,1.5,0]].forEach(([tx,tz,ry])=>{
+    box(2.2,.08,.9,M.orange,tx,GY+.72,tz,ry);
+    box(.08,.68,.8,M.greyDark,tx-.95,GY+.34,tz,ry);
+    box(.08,.68,.8,M.greyDark,tx+.95,GY+.34,tz,ry);
+    box(2.2,.06,.32,M.orange,tx-Math.sin(ry)*0- .62*Math.sin(ry+Math.PI/2),GY+.42,tz-.62*Math.cos(ry+Math.PI/2),ry);
+    box(2.2,.06,.32,M.orange,tx+.62*Math.sin(ry+Math.PI/2),GY+.42,tz+.62*Math.cos(ry+Math.PI/2),ry);
+  });
+
+  /* --- porta da calcio sul prato --- */
+  cyl(.05,.05,1.9,M.white,46,GY+.95,-6);
+  cyl(.05,.05,1.9,M.white,46,GY+.95,-10);
+  const bar=cyl(.05,.05,4.1,M.white,46,GY+1.9,-8,Math.PI/2);
+  bar.rotation.z=0;
+
+  return env;
+}
+buildEnvironment(scene);
+
+/* ---------- scacchiera (al centro del campo) ---------- */
+const T=1;                                 // lato casella
+const sqPos = sq => new THREE.Vector3(((sq&7)-3.5)*T, 0, (3.5-(sq>>3))*T);
+const boardGroup=new THREE.Group(), piecesGroup=new THREE.Group(), fxGroup=new THREE.Group();
+scene.add(boardGroup, piecesGroup, fxGroup);
+
+const tileLight = new THREE.MeshStandardMaterial({color:0xE7DCC3, roughness:.75});
+const tileDark  = new THREE.MeshStandardMaterial({color:0x4E3A28, roughness:.8});
+const tileGeo   = new THREE.BoxGeometry(.98,.14,.98);
+for(let sq=0; sq<64; sq++){
+  const r=sq>>3, c=sq&7;
+  const m=new THREE.Mesh(tileGeo, ((r+c)%2===0)?tileDark:tileLight);
+  const p=sqPos(sq); m.position.set(p.x,-.07,p.z);
+  m.receiveShadow=true;
+  m.userData.sq=sq;
+  boardGroup.add(m);
+}
+const frameMat=new THREE.MeshStandardMaterial({color:0x33241A, roughness:.7});
+const trimMat =new THREE.MeshStandardMaterial({color:0xB8860B, roughness:.4, metalness:.5});
+[[0,-4.45,9.3,.5],[0,4.45,9.3,.5],[-4.45,0,.5,8.4],[4.45,0,.5,8.4]].forEach(([x,z,w,d])=>{
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,.24,d), frameMat);
+  m.position.set(x,-.06,z); m.receiveShadow=true; m.castShadow=true; boardGroup.add(m);
+  const t=new THREE.Mesh(new THREE.BoxGeometry(w===9.3?9.3:.08,.03,d===8.4?8.4:.08), trimMat);
+  t.position.set(x + (x===0?0:(x>0?-.28:.28)), .07, z + (z===0?0:(z>0?-.28:.28)));
+  boardGroup.add(t);
+});
+const slab=new THREE.Mesh(new THREE.BoxGeometry(8.5,.06,8.5), frameMat);
+slab.position.y=-.155; boardGroup.add(slab);
+
+/* ---------- materiali per casa ---------- */
+const matCache={};
+function houseMats(h){
+  if(matCache[h.id]) return matCache[h.id];
+  const M={
+    main:  new THREE.MeshStandardMaterial({color:h.main, roughness:h.rough, metalness:h.metal}),
+    accent:new THREE.MeshStandardMaterial({color:h.accent, roughness:.45, metalness:.25}),
+    white: new THREE.MeshStandardMaterial({color:0xF2EFE8, roughness:.55}),
+    dark:  new THREE.MeshStandardMaterial({color:0x2E2E34, roughness:.6}),
+    stone: new THREE.MeshStandardMaterial({color:0x9A968C, roughness:.8}),
+    gold:  new THREE.MeshStandardMaterial({color:0xE7C34A, roughness:.35, metalness:.55}),
+    beak:  new THREE.MeshStandardMaterial({color:0xE8871E, roughness:.5}),
+    face:  new THREE.MeshStandardMaterial({color:0xE8B98B, roughness:.6}),
+    flame: new THREE.MeshStandardMaterial({color:0xFFC93C, emissive:0xFFA31A, emissiveIntensity:.95, roughness:.3}),
+    leaf:  new THREE.MeshStandardMaterial({color:0x3E8E4E, roughness:.8}),
+    glow:  new THREE.MeshStandardMaterial({color:0xF5C64A, emissive:0xE0A22A, emissiveIntensity:.9, roughness:.4}),
+    scarf: new THREE.MeshStandardMaterial({color:0x8E2F23, roughness:.7}),
+  };
+  matCache[h.id]=M; return M;
+}
+
+/* =====================================================================
+   2b. FABBRICA DEI PEZZI-MASCOTTE
+   Ogni pezzo è la mascotte della casa (testa caratterizzata) su un corpo
+   a veste; il ruolo si riconosce dall'attributo: corona (Re), diadema
+   (Regina), torretta (Torre), lancia con vessillo e scudo (Cavallo),
+   bastone con globo (Alfiere). Il Pedone è la recluta semplice.
+   Condivisa (in versione ridotta) con le pedine di monopoli.html.
+   ===================================================================== */
+function latheGeo(pts, seg){ return new THREE.LatheGeometry(pts.map(p=>new THREE.Vector2(p[0],p[1])), seg||20); }
+function put(g, geo, mat, x,y,z, rx,ry,rz){
+  const m=new THREE.Mesh(geo,mat);
+  m.position.set(x||0,y||0,z||0);
+  if(rx) m.rotation.x=rx; if(ry) m.rotation.y=ry; if(rz) m.rotation.z=rz;
+  m.castShadow=true;
+  g.add(m); return m;
+}
+const SPH=(r,w,h)=>new THREE.SphereGeometry(r,w||14,h||11);
+const CON=(r,h,s)=>new THREE.ConeGeometry(r,h,s||12);
+const CYL=(r1,r2,h,s)=>new THREE.CylinderGeometry(r1,r2,h,s||14);
+const TOR=(r,t)=>new THREE.TorusGeometry(r,t,8,22);
+
+/* testa-mascotte: origine alla base del collo, guarda verso -z */
+function mascotHead(h,M){
+  const g=new THREE.Group();
+  if(h.id==='aquila'){
+    put(g,SPH(.155),M.white,0,.16,0);
+    put(g,new THREE.SphereGeometry(.175,16,12,0,Math.PI*2,0,Math.PI*.52),M.main,0,.155,.015,.42);
+    put(g,CON(.05,.17),M.beak,0,.135,-.20,-Math.PI/2);
+    put(g,SPH(.023,8,7),M.dark,-.06,.21,-.12);
+    put(g,SPH(.023,8,7),M.dark, .06,.21,-.12);
+  } else if(h.id==='cero'){
+    put(g,SPH(.125),M.face,0,.13,-.02);
+    put(g,CON(.175,.32,16),M.main,0,.24,.01);
+    put(g,SPH(.05,10,8),M.main,0,.41,.02);
+    put(g,SPH(.035,8,7),M.flame,0,.45,.02);
+    put(g,CON(.03,.10,8),M.flame,0,.51,.02);
+    put(g,SPH(.02,8,7),M.dark,-.05,.15,-.115);
+    put(g,SPH(.02,8,7),M.dark, .05,.15,-.115);
+    put(g,TOR(.135,.032),M.accent,0,.02,0,Math.PI/2);
+  } else if(h.id==='quercia'){
+    put(g,CYL(.115,.135,.24),M.main,0,.14,0);
+    put(g,SPH(.085,10,8),M.leaf,0,.30,0);
+    put(g,SPH(.065,10,8),M.leaf,.07,.27,.03);
+    put(g,SPH(.055,10,8),M.leaf,-.07,.28,-.02);
+    put(g,CYL(.012,.014,.15,6),M.main,.05,.33,.02,0,0,.5);
+    put(g,SPH(.027,8,7),M.glow,-.055,.17,-.11);
+    put(g,SPH(.027,8,7),M.glow, .055,.17,-.11);
+  } else { /* tasso */
+    put(g,SPH(.15),M.dark,0,.15,0);
+    put(g,SPH(.07,10,8),M.white,0,.10,-.13);
+    put(g,SPH(.024,8,7),M.dark,0,.115,-.195);
+    put(g,new THREE.BoxGeometry(.055,.02,.26),M.white,0,.245,-.045,.5);
+    put(g,SPH(.045,8,7),M.dark,-.095,.27,.02);
+    put(g,SPH(.045,8,7),M.dark, .095,.27,.02);
+    put(g,SPH(.018,8,7),M.white,-.06,.18,-.13);
+    put(g,SPH(.018,8,7),M.white, .06,.18,-.13);
+    put(g,TOR(.12,.04),M.scarf,0,.01,0,Math.PI/2);
+  }
+  return g;
+}
+/* corpo a veste nel colore della casa */
+function mascotBody(M,bh,br){
+  const g=new THREE.Group();
+  put(g,latheGeo([[0,0],[br,0],[br*.96,bh*.18],[br*.7,bh*.55],[br*.5,bh*.85],[br*.4,bh],[0,bh]]),M.main);
+  put(g,TOR(br*.68,.024),M.accent,0,bh*.48,0,Math.PI/2);
+  return g;
+}
+const ROLE={ p:{h:.40,r:.20,s:.85}, r:{h:.50,r:.24,s:1}, n:{h:.50,r:.22,s:1},
+             b:{h:.54,r:.21,s:1},   q:{h:.60,r:.22,s:1.03}, k:{h:.64,r:.23,s:1.1} };
+function buildPiece(type, house){
+  const g=new THREE.Group(), M=houseMats(house), R=ROLE[type];
+  put(g,CYL(.27,.30,.08,18),M.dark,0,.04,0);            // basamento
+  let y0=.08;
+  if(type==='r'){                                        // la Torre sta su una torretta
+    put(g,CYL(.26,.29,.16,14),M.stone,0,y0+.08,0);
+    for(let i=0;i<5;i++){
+      const a=i/5*Math.PI*2;
+      put(g,new THREE.BoxGeometry(.07,.07,.06),M.stone,Math.cos(a)*.24,y0+.19,Math.sin(a)*.24,0,-a);
+    }
+    y0+=.16;
+  }
+  const body=mascotBody(M,R.h,R.r); body.position.y=y0; g.add(body);
+  const headY=y0+R.h;
+  const head=mascotHead(house,M); head.position.y=headY; g.add(head);
+  const isCero=house.id==='cero';
+  if(type==='k'){                                        // corona del Re
+    const cr=isCero?.19:.125, cy=headY+(isCero?.12:.20);
+    put(g,TOR(cr,.028),M.gold,0,cy,0,Math.PI/2);
+    for(let i=0;i<4;i++){
+      const a=i/4*Math.PI*2+Math.PI/4;
+      put(g,CON(.024,.08,6),M.gold,Math.cos(a)*cr,cy+.05,Math.sin(a)*cr);
+    }
+  }
+  if(type==='q'){                                        // diadema della Regina
+    const tr=isCero?.15:.095, ty=headY+(isCero?.16:.22);
+    put(g,TOR(tr,.02),M.gold,0,ty,0,Math.PI/2);
+    put(g,SPH(.032,8,7),M.gold,0,ty+.01,-tr);
+  }
+  if(type==='n'){                                        // lancia con vessillo + scudo
+    put(g,CYL(.014,.014,.85,8),M.stone,-.24,.46,0,0,0,.1);
+    put(g,new THREE.BoxGeometry(.015,.10,.22),M.accent,-.275,.80,-.12);
+    put(g,CYL(.10,.10,.035,16),M.accent,.24,y0+R.h*.55,-.02,Math.PI/2);
+    put(g,SPH(.03,8,7),M.gold,.24,y0+R.h*.55,-.05);
+  }
+  if(type==='b'){                                        // bastone con globo
+    put(g,CYL(.014,.014,.72,8),M.stone,.22,.40,0);
+    put(g,SPH(.05,10,8),M.gold,.22,.78,0);
+  }
+  g.scale.setScalar(R.s*.96);
+  return g;
+}
+
+/* ---------- evidenziatori ---------- */
+const hlMove = new THREE.MeshBasicMaterial({color:0x3E8E4E, transparent:true, opacity:.8});
+const hlCap  = new THREE.MeshBasicMaterial({color:0xD4A017, transparent:true, opacity:.95});
+const hlSel  = new THREE.MeshBasicMaterial({color:0xE7C34A, transparent:true, opacity:.9});
+const hlLast = new THREE.MeshBasicMaterial({color:0xD4A017, transparent:true, opacity:.16});
+const hlChk  = new THREE.MeshBasicMaterial({color:0xE8A21B, transparent:true, opacity:.85});
+const discGeo = new THREE.CylinderGeometry(.14,.14,.03,20);
+const ringGeo = new THREE.TorusGeometry(.34,.045,8,30);
+const selGeo  = new THREE.TorusGeometry(.40,.035,8,32);
+const lastGeo = new THREE.PlaneGeometry(.96,.96);
+const marks=[];
+const selRing = new THREE.Mesh(selGeo, hlSel);   selRing.rotation.x=Math.PI/2; selRing.visible=false;
+const chkRing = new THREE.Mesh(ringGeo, hlChk);  chkRing.rotation.x=Math.PI/2; chkRing.visible=false;
+const lastA = new THREE.Mesh(lastGeo, hlLast);   lastA.rotation.x=-Math.PI/2;  lastA.visible=false;
+const lastB = new THREE.Mesh(lastGeo, hlLast);   lastB.rotation.x=-Math.PI/2;  lastB.visible=false;
+fxGroup.add(selRing, chkRing, lastA, lastB);
+function clearMarks(){ marks.forEach(m=>fxGroup.remove(m)); marks.length=0; selRing.visible=false; }
+function showMarks(from, moves){
+  clearMarks();
+  const p=sqPos(from); selRing.position.set(p.x,.10,p.z); selRing.visible=true;
+  for(const m of moves){
+    const cap = state.board[m.to] || m.ep;
+    const mk = new THREE.Mesh(cap?ringGeo:discGeo, cap?hlCap:hlMove);
+    if(cap) mk.rotation.x=Math.PI/2;
+    const q=sqPos(m.to); mk.position.set(q.x, cap?.10:.06, q.z);
+    mk.userData.sq=m.to;
+    fxGroup.add(mk); marks.push(mk);
+  }
+}
+function showLast(){
+  if(game.last){
+    const a=sqPos(game.last[0]), b=sqPos(game.last[1]);
+    lastA.position.set(a.x,.006,a.z); lastB.position.set(b.x,.007,b.z);
+    lastA.visible=lastB.visible=true;
+  } else lastA.visible=lastB.visible=false;
+}
+
+/* ---------- animazioni ---------- */
+const tweens=[];
+function tween(dur, fn, done){ tweens.push({t:0,dur,fn,done}); }
+const easeIO = k => k<.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
+
+let meshAt = new Array(64).fill(null);
+function clearPieces(){
+  piecesGroup.traverse(o=>{ if(o.isMesh) o.geometry.dispose(); });
+  while(piecesGroup.children.length) piecesGroup.remove(piecesGroup.children[0]);
+  meshAt = new Array(64).fill(null);
+}
+function spawnAll(){
+  clearPieces();
+  for(let sq=0;sq<64;sq++){
+    const p=state.board[sq]; if(!p) continue;
+    const g=buildPiece(p.t, game.teams[p.c]);
+    const pos=sqPos(sq); g.position.copy(pos);
+    if(p.c===1) g.rotation.y=Math.PI;
+    piecesGroup.add(g); meshAt[sq]=g;
+  }
+}
+function glide(g, from, to, hop, done){
+  const a=sqPos(from), b=sqPos(to), h=hop?.55:.14;
+  const s=g.scale.x;
+  tween(430, e=>{
+    g.position.x=a.x+(b.x-a.x)*e;
+    g.position.z=a.z+(b.z-a.z)*e;
+    g.position.y=Math.sin(e*Math.PI)*h;
+  }, ()=>{ g.position.set(b.x,0,b.z); g.scale.setScalar(s); done&&done(); });
+}
+function sink(g){
+  const s=g.scale.x;
+  tween(360, e=>{ g.scale.setScalar(s*(1-e*.99)); g.position.y=-.35*e; },
+    ()=>{ piecesGroup.remove(g); g.traverse(o=>{ if(o.isMesh) o.geometry.dispose(); }); });
+}
+function animCameraTo(theta){
+  const from=camCtl.theta;
+  let d=theta-from;
+  while(d> Math.PI) d-=Math.PI*2;
+  while(d<-Math.PI) d+=Math.PI*2;
+  if(Math.abs(d)<.01) return;
+  tween(650, e=>{ camCtl.theta=from+d*easeIO(e); applyCamera(); });
+}
+
+/* =====================================================================
+   3. STATO DI GIOCO E INTERFACCIA
+   ===================================================================== */
+let state=null;
+const game={ teams:[null,null], captured:[[],[]], history:[], last:null, over:false };
+let selected=null, curLegal=[], busy=false, promoPending=null, autoView=true;
+
+const $=id=>document.getElementById(id);
+const statusPill=$('statusPill');
+
+function setStatus(text, house, amber){
+  statusPill.textContent=text;
+  if(amber){ statusPill.style.background='var(--gold)'; statusPill.style.color='#241A03'; }
+  else if(house){ statusPill.style.background=house.ui; statusPill.style.color=house.uiText; }
+  else { statusPill.style.background='var(--blu)'; statusPill.style.color='#fff'; }
+}
+function updateHUD(){
+  for(const i of [0,1]){
+    const el=$('pl'+i);
+    el.style.boxShadow = (!game.over && state.turn===i)
+      ? '0 0 0 3px '+game.teams[i].ui+', 0 8px 22px rgba(0,0,0,.4)' : 'none';
+    const tray=$('tray'+i); tray.innerHTML='';
+    for(const t of game.captured[i]){
+      const b=document.createElement('span');
+      b.className='cap-badge';
+      b.style.background=game.teams[1-i].ui;
+      b.style.color=game.teams[1-i].uiText;
+      b.textContent=LETTER[t];
+      tray.appendChild(b);
+    }
+  }
+  $('undoBtn').disabled = game.history.length===0 || busy;
+}
+function refreshStatus(){
+  showLast();
+  const chk = inCheckColor(state.board, state.turn);
+  const can = anyLegal(state);
+  const cur = game.teams[state.turn];
+  chkRing.visible=false;
+  if(!can){
+    if(chk) return endGame(1-state.turn, 'Scacco matto');
+    return endGame(null, 'Stallo: nessuna mossa possibile');
+  }
+  if(state.half>=100)                    return endGame(null, 'Patta per la regola delle 50 mosse');
+  if(insufficientMaterial(state.board))  return endGame(null, 'Patta: materiale insufficiente');
+  if(chk){
+    const k=findKing(state.board,state.turn), p=sqPos(k);
+    chkRing.position.set(p.x,.10,p.z); chkRing.visible=true;
+    setStatus('Scacco a '+cur.name+'!', null, true);
+  } else {
+    setStatus('Tocca a '+cur.name, cur);
+  }
+  updateHUD();
+  if(autoView) animCameraTo(state.turn===0?0:Math.PI);
+}
+function endGame(winner, reason){
+  game.over=true; clearMarks(); updateHUD();
+  const imgs=$('endImgs'); imgs.innerHTML='';
+  if(winner!==null){
+    const w=game.teams[winner];
+    $('endTitle').textContent='Vince '+w.name+'!';
+    $('endMsg').textContent=reason+'. Complimenti a entrambe le case per la sfida.';
+    const im=document.createElement('img'); im.src=w.img; im.alt=w.name; imgs.appendChild(im);
+    setStatus('Vince '+w.name+' — '+reason, w);
+  } else {
+    $('endTitle').textContent='Patta!';
+    $('endMsg').textContent=reason+'. Le due case si dividono l’onore del campo.';
+    for(const t of game.teams){ const im=document.createElement('img'); im.src=t.img; im.alt=t.name; imgs.appendChild(im); }
+    setStatus('Patta — '+reason, null, true);
+  }
+  setTimeout(()=>$('endOv').classList.add('show'), 900);
+}
+
+/* ---------- esecuzione mossa (stato + 3D) ---------- */
+function snapshot(){
+  game.history.push({
+    board: state.board.map(p=>p?{...p}:null),
+    turn:state.turn, ep:state.ep, half:state.half,
+    rights:[{...state.rights[0]},{...state.rights[1]}],
+    cap0:game.captured[0].slice(), cap1:game.captured[1].slice(),
+    last: game.last ? game.last.slice() : null,
+  });
+}
+function execMove(m, promoT){
+  const mover=state.turn;
+  snapshot();
+  const cap=applyMove(state, m, promoT);
+  if(cap) game.captured[mover].push(cap.t);
+  game.last=[m.from,m.to];
+  busy=true; clearMarks(); updateHUD();
+  if(cap){
+    const capSq = m.ep ? m.to+(mover===0?-8:8) : m.to;
+    if(meshAt[capSq]){ sink(meshAt[capSq]); meshAt[capSq]=null; }
+  }
+  const g=meshAt[m.from], movedType=state.board[m.to].t;
+  meshAt[m.to]=g; meshAt[m.from]=null;
+  if(m.castle){
+    const rk = mover===0?0:56;
+    const rf = m.castle==='k'?rk+7:rk, rt = m.castle==='k'?rk+5:rk+3;
+    const rg=meshAt[rf]; meshAt[rt]=rg; meshAt[rf]=null;
+    glide(rg, rf, rt, false);
+  }
+  glide(g, m.from, m.to, movedType==='n', ()=>{
+    if(m.promo){
+      piecesGroup.remove(g); g.traverse(o=>{ if(o.isMesh) o.geometry.dispose(); });
+      const ng=buildPiece(state.board[m.to].t, game.teams[mover]);
+      const p=sqPos(m.to); ng.position.copy(p);
+      if(mover===1) ng.rotation.y=Math.PI;
+      piecesGroup.add(ng); meshAt[m.to]=ng;
+    }
+    busy=false;
+    refreshStatus();
+  });
+}
+function undo(){
+  if(!game.history.length || busy || promoPending) return;
+  const s=game.history.pop();
+  state.board=s.board; state.turn=s.turn; state.ep=s.ep; state.half=s.half; state.rights=s.rights;
+  game.captured=[s.cap0,s.cap1]; game.last=s.last; game.over=false;
+  $('endOv').classList.remove('show');
+  selected=null; curLegal=[]; clearMarks();
+  spawnAll(); refreshStatus(); updateHUD();
+}
+
+/* ---------- input: orbita + selezione ---------- */
+const pointers=new Map();
+let dragDist=0, pinchD0=0;
+canvas.addEventListener('pointerdown', e=>{
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  dragDist=0;
+  if(pointers.size===2){
+    const [a,b]=[...pointers.values()];
+    pinchD0=Math.hypot(a.x-b.x,a.y-b.y);
+  }
+});
+canvas.addEventListener('pointermove', e=>{
+  if(!pointers.has(e.pointerId)) return;
+  const prev=pointers.get(e.pointerId);
+  const dx=e.clientX-prev.x, dy=e.clientY-prev.y;
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===1){
+    dragDist+=Math.abs(dx)+Math.abs(dy);
+    if(dragDist>8){
+      camCtl.theta-=dx*.0055;
+      camCtl.phi=Math.min(1.42,Math.max(.18,camCtl.phi-dy*.004));
+      applyCamera();
+    }
+  } else if(pointers.size===2){
+    const [a,b]=[...pointers.values()];
+    const d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(pinchD0>0){
+      camCtl.radius=Math.min(46,Math.max(6.5,camCtl.radius*(pinchD0/d)));
+      pinchD0=d; applyCamera();
+    }
+    dragDist=99;
+  }
+});
+canvas.addEventListener('pointerup', e=>{
+  pointers.delete(e.pointerId);
+  if(dragDist<=8) pick(e.clientX,e.clientY);
+});
+canvas.addEventListener('pointercancel', e=>pointers.delete(e.pointerId));
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  camCtl.radius=Math.min(46,Math.max(6.5,camCtl.radius+e.deltaY*.014));
+  applyCamera();
+},{passive:false});
+
+const raycaster=new THREE.Raycaster(), ndc=new THREE.Vector2();
+function pick(cx,cy){
+  if(game.over || busy || promoPending) return;
+  ndc.set(cx/window.innerWidth*2-1, -(cy/window.innerHeight)*2+1);
+  raycaster.setFromCamera(ndc,camera);
+  const hits=raycaster.intersectObjects([piecesGroup,boardGroup,fxGroup],true);
+  let sq=null;
+  for(const h of hits){
+    let o=h.object;
+    while(o && o.userData.sq===undefined) o=o.parent;
+    if(o && o.userData.sq!==undefined){ sq=o.userData.sq; break; }
+    o=h.object;
+    while(o && o.parent!==piecesGroup) o=o.parent;
+    if(o){ const i=meshAt.indexOf(o); if(i>=0){ sq=i; break; } }
+  }
+  if(sq===null){ selected=null; curLegal=[]; clearMarks(); return; }
+  if(selected!==null){
+    const m=curLegal.find(m=>m.to===sq);
+    if(m){
+      selected=null; curLegal=[];
+      if(m.promo){ promoPending=m; openPromo(); }
+      else execMove(m);
+      return;
+    }
+  }
+  const p=state.board[sq];
+  if(p && p.c===state.turn){
+    selected=sq; curLegal=legalMoves(state,sq);
+    showMarks(sq,curLegal);
+  } else { selected=null; curLegal=[]; clearMarks(); }
+}
+
+/* ---------- promozione ---------- */
+function openPromo(){
+  const row=$('promoRow'); row.innerHTML='';
+  const h=game.teams[state.turn];
+  for(const t of ['q','r','b','n']){
+    const b=document.createElement('button');
+    b.className='promo-btn';
+    b.innerHTML='<span class="glyph" style="background:'+h.ui+';color:'+h.uiText+'">'+LETTER[t]+'</span><span>'+PIECE_NAME[t]+'</span>';
+    b.addEventListener('click',()=>{
+      $('promoOv').classList.remove('show');
+      const m=promoPending; promoPending=null;
+      execMove(m,t);
+    });
+    row.appendChild(b);
+  }
+  $('promoOv').classList.add('show');
+}
+
+/* =====================================================================
+   4. SELEZIONE DELLE CASE E AVVIO
+   ===================================================================== */
+const picked=[];
+const grid=$('housesGrid');
+HOUSES.forEach(h=>{
+  const card=document.createElement('div');
+  card.className='house-card';
+  card.tabIndex=0;
+  card.setAttribute('role','button');
+  card.setAttribute('aria-label','Scegli '+h.name);
+  card.innerHTML='<span class="pick"></span><img src="'+h.img+'" alt="'+h.name+'"><div class="nm">'+h.name+'</div>';
+  const toggle=()=>{
+    const i=picked.indexOf(h);
+    if(i>=0) picked.splice(i,1);
+    else { if(picked.length===2) picked.shift(); picked.push(h); }
+    renderPicks();
+  };
+  card.addEventListener('click',toggle);
+  card.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } });
+  card.dataset.house=h.id;
+  grid.appendChild(card);
+});
+function renderPicks(){
+  document.querySelectorAll('.house-card').forEach(c=>{
+    const h=HOUSES.find(x=>x.id===c.dataset.house);
+    const i=picked.indexOf(h);
+    c.classList.toggle('sel', i>=0);
+    c.style.borderColor = i>=0 ? h.ui : 'var(--panelBrd)';
+    c.querySelector('.pick').textContent = i>=0 ? 'CASA '+(i+1) : '';
+  });
+  for(const s of [0,1]){
+    const slot=$('slot'+s);
+    if(picked[s]) slot.innerHTML='<img src="'+picked[s].img+'" alt=""><span>'+picked[s].name+'</span>';
+    else slot.innerHTML='<span class="ph">'+(s===0?'Prima casa…':'Seconda casa…')+'</span>';
+  }
+  $('startBtn').disabled = picked.length!==2;
+}
+function startGame(){
+  game.teams=[picked[0],picked[1]];
+  game.captured=[[],[]]; game.history=[]; game.last=null; game.over=false;
+  state=newState();
+  selected=null; curLegal=[]; busy=false; promoPending=null;
+  for(const i of [0,1]){
+    $('pl'+i+'img').src=game.teams[i].img;
+    $('pl'+i+'img').alt=game.teams[i].name;
+    $('pl'+i+'name').textContent=game.teams[i].name;
+    $('pl'+i+'name').style.color=game.teams[i].ui;
+  }
+  $('endOv').classList.remove('show');
+  $('selectScreen').style.display='none';
+  $('gameScreen').style.display='block';
+  resize();
+  camCtl.theta=0; camCtl.phi=.95; camCtl.radius=12.5; applyCamera();
+  spawnAll(); chkRing.visible=false; showLast(); clearMarks();
+  refreshStatus(); updateHUD();
+}
+$('startBtn').addEventListener('click', startGame);
+$('rematchBtn').addEventListener('click', ()=>{ $('endOv').classList.remove('show'); startGame(); });
+$('changeBtn').addEventListener('click', backToSelect);
+$('newBtn').addEventListener('click', backToSelect);
+function backToSelect(){
+  $('endOv').classList.remove('show');
+  $('gameScreen').style.display='none';
+  $('selectScreen').style.display='flex';
+}
+$('undoBtn').addEventListener('click', undo);
+$('viewBtn').addEventListener('click', ()=>animCameraTo(state.turn===0?0:Math.PI));
+$('autoBtn').addEventListener('click', function(){
+  autoView=!autoView;
+  this.textContent='Auto-vista: '+(autoView?'ON':'OFF');
+});
+$('infoBtn').addEventListener('click', ()=>$('infoOv').classList.add('show'));
+$('infoBtn2').addEventListener('click', ()=>$('infoOv').classList.add('show'));
+$('infoClose').addEventListener('click', ()=>$('infoOv').classList.remove('show'));
+
+/* hook di test da console: camera libera per le verifiche */
+window.__scacchi.cam = (t,p,r)=>{ camCtl.theta=t; camCtl.phi=p; camCtl.radius=r; applyCamera(); return 'ok'; };
+/* hook di test da console: __scacchi.play(da, a, promozione?) */
+window.__scacchi.play = (f,t,pr)=>{
+  if(!state || game.over) return 'nessuna partita';
+  if(busy || promoPending) return 'occupato';
+  const m=legalMoves(state,f).find(x=>x.to===t);
+  if(!m) return 'mossa illegale';
+  if(m.promo && !pr){ promoPending=m; openPromo(); return 'promo-ui'; }
+  execMove(m, pr);
+  return 'ok';
+};
+
+/* ---------- render loop ---------- */
+let prev=performance.now();
+function loop(now){
+  const dt=now-prev; prev=now;
+  for(let i=tweens.length-1;i>=0;i--){
+    const tw=tweens[i];
+    tw.t+=dt;
+    const k=Math.min(1,tw.t/tw.dur);
+    tw.fn(easeIO(k));
+    if(k>=1){ tweens.splice(i,1); tw.done&&tw.done(); }
+  }
+  if(chkRing.visible){
+    const s=1+Math.sin(now*.006)*.10;
+    chkRing.scale.setScalar(s);
+  }
+  renderer.render(scene,camera);
+  requestAnimationFrame(loop);
+}
+resize(); applyCamera();
+requestAnimationFrame(loop);
+/* watchdog: se il browser sospende requestAnimationFrame (tab in secondo
+   piano, multitasking su iPad), le animazioni proseguono lo stesso */
+setInterval(()=>{ if(performance.now()-prev>250) loop(performance.now()); },250);
+</script>
+</body>
+</html>
