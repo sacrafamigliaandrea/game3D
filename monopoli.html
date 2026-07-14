@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Monopoli della Scuola — I Giochi delle Case</title>
+<title>Monopoli della Scuola — Game 3D</title>
 <link rel="icon" href="logo.png">
 <link rel="apple-touch-icon" href="logo.png">
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
@@ -80,6 +80,7 @@ button:focus-visible,a.btn:focus-visible{outline:3px solid var(--gold);outline-o
 .feedback.ok{color:#7BC98B}
 .feedback.amber{color:var(--gold)}
 .mbtns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+#msgPhoto{width:100%;max-height:230px;object-fit:cover;border-radius:12px;margin:8px 0;border:1.5px solid var(--panelBrd)}
 .cardpaper{background:var(--goldL);border:1.5px solid var(--gold2);border-radius:14px;padding:18px 20px;
   font-size:18px;margin:14px 0;color:var(--text)}
 .rankrow{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--panelBrd);
@@ -115,6 +116,7 @@ button:focus-visible,a.btn:focus-visible{outline:3px solid var(--gold);outline-o
 <div class="overlay" id="msgOv"><div class="modal">
   <div class="who" id="msgWho"></div>
   <h2 id="msgTitle"></h2>
+  <img id="msgPhoto" alt="" style="display:none">
   <div class="cardpaper" id="msgCard" style="display:none"></div>
   <p id="msgText"></p>
   <div class="mbtns" id="msgBtns"></div>
@@ -136,8 +138,8 @@ button:focus-visible,a.btn:focus-visible{outline:3px solid var(--gold);outline-o
   <div class="info-body">
     <h3>Che cos'è</h3>
     <p>Le quattro case giocano insieme sul campo da basket del cortile. Il tabellone
-    percorre i luoghi della scuola: per comprare un'aula bisogna prima rispondere
-    correttamente a un quesito; chi capita in un'aula altrui paga l'affitto, ma può
+    percorre i luoghi veri del campus: per comprare un luogo bisogna prima rispondere
+    correttamente a un quesito; chi capita in un luogo altrui paga l'affitto, ma può
     dimezzarlo con un quesito di recupero.</p>
     <h3>Quesiti didattici</h3>
     <p>Le domande coprono matematica, italiano, scienze, geografia, storia, inglese e
@@ -149,7 +151,7 @@ button:focus-visible,a.btn:focus-visible{outline:3px solid var(--gold);outline-o
       <li>Si parte con 800 crediti; ogni passaggio dall'Ingresso ne vale 150.</li>
       <li>Doppio ai dadi = si tira di nuovo (tre doppi di fila portano in Assemblea).</li>
       <li>Chi va in Assemblea d'Istituto salta un turno.</li>
-      <li>Con entrambe le aule di un colore l'affitto raddoppia.</li>
+      <li>Con entrambi i luoghi di un colore l'affitto raddoppia.</li>
       <li>Chi resta senza crediti esce dal gioco; si può chiudere in ogni momento con la classifica.</li>
     </ul>
   </div>
@@ -159,19 +161,114 @@ button:focus-visible,a.btn:focus-visible{outline:3px solid var(--gold);outline-o
 <script>
 'use strict';
 /* =====================================================================
+   EFFETTI SONORI — Web Audio API, tutto sintetizzato (nessun file).
+   L'AudioContext parte solo dopo il primo gesto dell'utente (regola
+   iOS/Chrome). Preferenza ON/OFF salvata per tutta la suite.
+   Modulo condiviso da scacchi.html, monopoli.html e tesoro.html.
+   ===================================================================== */
+const SFX=(()=>{
+  const store={
+    get(){ try{ return localStorage.getItem('giochiCaseAudio'); }catch(e){ return null; } },
+    set(v){ try{ localStorage.setItem('giochiCaseAudio',v); }catch(e){} },
+  };
+  let ctx=null, master=null, on=store.get()!=='off';
+  function ensure(){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC) return null;
+    if(!ctx){
+      ctx=new AC();
+      master=ctx.createGain(); master.gain.value=.22; master.connect(ctx.destination);
+    }
+    if(ctx.state==='suspended') ctx.resume();
+    return ctx;
+  }
+  window.addEventListener('pointerdown',ensure,{once:true});
+  window.addEventListener('keydown',ensure,{once:true});
+  function tone(o){
+    if(!on||!ensure()) return;
+    const t0=ctx.currentTime+(o.at||0);
+    const osc=ctx.createOscillator(), g=ctx.createGain();
+    osc.type=o.type||'sine';
+    osc.frequency.setValueAtTime(o.f0,t0);
+    if(o.f1) osc.frequency.exponentialRampToValueAtTime(Math.max(30,o.f1),t0+o.dur);
+    g.gain.setValueAtTime(0,t0);
+    g.gain.linearRampToValueAtTime(o.vol||.5,t0+(o.a||.008));
+    g.gain.exponentialRampToValueAtTime(.001,t0+o.dur);
+    osc.connect(g); g.connect(master);
+    osc.start(t0); osc.stop(t0+o.dur+.05);
+  }
+  function noise(o){
+    if(!on||!ensure()) return;
+    const t0=ctx.currentTime+(o.at||0), dur=o.dur;
+    const len=Math.max(1,Math.floor(ctx.sampleRate*dur));
+    const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const f=ctx.createBiquadFilter();
+    f.type=o.ftype||'lowpass';
+    f.frequency.setValueAtTime(o.freq||1200,t0);
+    if(o.freq1) f.frequency.exponentialRampToValueAtTime(o.freq1,t0+dur);
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(0,t0);
+    g.gain.linearRampToValueAtTime(o.vol||.4,t0+.006);
+    g.gain.exponentialRampToValueAtTime(.001,t0+dur);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start(t0); src.stop(t0+dur+.05);
+  }
+  const api={
+    get on(){ return on; },
+    toggle(){ on=!on; store.set(on?'on':'off'); if(on) api.click(); return on; },
+    /* suoni base */
+    click:   ()=>tone({f0:880,dur:.06,type:'triangle',vol:.25}),
+    pop:     ()=>tone({f0:520,f1:760,dur:.09,vol:.35}),
+    toc:     ()=>{ noise({dur:.05,freq:900,vol:.5}); tone({f0:190,f1:120,dur:.09,vol:.5}); },
+    thud:    ()=>{ noise({dur:.08,freq:500,vol:.55}); tone({f0:140,f1:70,dur:.16,vol:.6}); },
+    swoosh:    ()=>noise({dur:.28,ftype:'bandpass',freq:400,freq1:1800,vol:.35}),
+    swooshDown:()=>noise({dur:.26,ftype:'bandpass',freq:1600,freq1:300,vol:.35}),
+    /* feedback e premi */
+    ding:    ()=>{ tone({f0:1320,dur:.22,type:'triangle',vol:.35}); tone({f0:1760,dur:.3,type:'triangle',vol:.25,at:.07}); },
+    coin:    ()=>{ tone({f0:988,dur:.08,type:'square',vol:.16}); tone({f0:1319,dur:.22,type:'square',vol:.14,at:.08}); },
+    good:    ()=>[523,659,784].forEach((n,i)=>tone({f0:n,dur:.16,type:'triangle',vol:.4,at:i*.09})),
+    bad:     ()=>{ tone({f0:392,dur:.16,vol:.35}); tone({f0:330,dur:.24,vol:.3,at:.14}); },
+    alert:   ()=>{ tone({f0:660,dur:.12,type:'square',vol:.18}); tone({f0:880,dur:.18,type:'square',vol:.18,at:.13}); },
+    fanfare: ()=>[523,659,784,1047].forEach((n,i)=>tone({f0:n,dur:i===3?.5:.18,type:'triangle',vol:.4,at:i*.13})),
+    sparkle: ()=>[1047,1319,1568,2093].forEach((n,i)=>tone({f0:n,dur:.12,vol:.22,at:i*.05})),
+    magic(){
+      [392,523,659,784,1047].forEach((n,i)=>tone({f0:n,dur:.3,vol:.16,at:i*.06}));
+      noise({dur:.5,ftype:'bandpass',freq:900,freq1:2600,vol:.12});
+    },
+    /* movimento */
+    hop:  ()=>tone({f0:430+Math.random()*130,f1:660,dur:.08,vol:.28}),
+    dice(){
+      if(!on||!ensure()) return;
+      for(let i=0;i<7;i++)
+        noise({dur:.03,ftype:'bandpass',freq:2000+Math.random()*1600,vol:.4,at:i*.09+Math.random()*.03});
+      tone({f0:220,f1:90,dur:.12,vol:.4,at:.72});
+      noise({dur:.07,freq:700,vol:.4,at:.7});
+    },
+    chestOpen(){
+      tone({f0:110,f1:220,dur:.5,type:'sawtooth',vol:.2});
+      [523,659,784,1047,1319].forEach((n,i)=>tone({f0:n,dur:.2,type:'triangle',vol:.3,at:.25+i*.09}));
+    },
+  };
+  return api;
+})();
+
+/* =====================================================================
    MONOPOLI DELLA SCUOLA — single file, vanilla JS + Three.js r128
    Le 4 case giocano insieme; tabellone sui luoghi della scuola con
    quesiti didattici, nel cortile 3D ricostruito da 3.jpg.
    ===================================================================== */
 
 const HOUSES = [
-  { id:'aquila',  name:'Aquila Blu',    img:'AquilaBlu.png',
+  { id:'aquila',  name:'Aquila Blu',    img:'Aquila_monopoli.png',
     ui:'#3E7BD6', uiText:'#FFFFFF', main:0x2E5FB4, accent:0xC9D6E8, metal:.35, rough:.45 },
-  { id:'cero',    name:'Cero Giallo',   img:'CeroGiallo.png',
+  { id:'cero',    name:'Cero Giallo',   img:'Cero_monopoli.png',
     ui:'#E3A81C', uiText:'#2A1F08', main:0xE0A422, accent:0x5A4326, metal:.05, rough:.55 },
-  { id:'quercia', name:'Quercia Verde', img:'QuerciaVerde.png',
+  { id:'quercia', name:'Quercia Verde', img:'Quercia_monopoli.png',
     ui:'#3E8E4E', uiText:'#FFFFFF', main:0x6E4B2A, accent:0x3E8E4E, metal:.05, rough:.85 },
-  { id:'tasso',   name:'Tasso Rosso',   img:'TassoRosso.png',
+  { id:'tasso',   name:'Tasso Rosso',   img:'Tasso_monopoli.png',
     ui:'#C0452F', uiText:'#FFFFFF', main:0xAF3D2B, accent:0xEFE8DA, metal:.10, rough:.55 },
 ];
 
@@ -179,29 +276,29 @@ const HOUSES = [
 const GROUPS={ A:'#B96A3B', B:'#4E7FCB', C:'#7B5FB5', D:'#3E8E4E', E:'#D9822B', F:'#C0452F', G:'#B8860B' };
 const SPACES=[
   {k:'start',name:'Ingresso'},
-  {k:'prop', name:'Atrio', g:'A', price:100},
+  {k:'prop', name:'Garage dei Bus', g:'A', price:100},
   {k:'circ', name:'Circolare'},
-  {k:'prop', name:'Bidelleria', g:'A', price:110},
+  {k:'prop', name:'Parcheggio', g:'A', price:110},
   {k:'quiz', name:'Quiz'},
-  {k:'prop', name:'Aula di Italiano', g:'B', price:140},
+  {k:'prop', name:'Scuola Primaria', g:'B', price:140, foto:'scuola_primaria.jpeg'},
   {k:'free', name:'Ricreazione'},
-  {k:'prop', name:'Aula di Matematica', g:'B', price:150},
+  {k:'prop', name:'Scuola Secondaria', g:'B', price:150, foto:'scuola_secondaria.jpeg'},
   {k:'circ', name:'Circolare'},
-  {k:'prop', name:'Lab. Informatica', g:'C', price:180},
-  {k:'prop', name:'Lab. Scienze', g:'C', price:190},
+  {k:'prop', name:'Aula di Musica', g:'C', price:180},
+  {k:'prop', name:'Lab. Informatica', g:'C', price:190, foto:'lab_info.jpg'},
   {k:'quiz', name:'Quiz'},
   {k:'meet', name:'Assemblea'},
-  {k:'prop', name:'Biblioteca', g:'D', price:220},
-  {k:'prop', name:'Aula Magna', g:'D', price:230},
+  {k:'prop', name:'Mensa', g:'D', price:220, foto:'mensa.jpeg'},
+  {k:'prop', name:'Parco della Piscina', g:'D', price:230},
   {k:'circ', name:'Circolare'},
-  {k:'prop', name:'Aula di Musica', g:'E', price:260},
-  {k:'prop', name:'Aula di Arte', g:'E', price:270},
+  {k:'prop', name:'Ingresso Piscine', g:'E', price:260, foto:'ingresso_piscina.jpeg'},
+  {k:'prop', name:'Piscine', g:'E', price:270},
   {k:'gomeet',name:'Vai in Assemblea'},
-  {k:'prop', name:'Palestra', g:'F', price:290},
+  {k:'prop', name:'Campo da Volley', g:'F', price:290, foto:'campo_volley.jpeg'},
   {k:'quiz', name:'Quiz'},
-  {k:'prop', name:'Campo da Basket', g:'F', price:300},
-  {k:'prop', name:'Mensa', g:'G', price:320},
-  {k:'prop', name:'Giardino Didattico', g:'G', price:330},
+  {k:'prop', name:'Campo da Calcio', g:'F', price:300, foto:'campo_calcio.jpeg'},
+  {k:'prop', name:'QDV Arena', g:'G', price:320, foto:'qdv_arena.jpeg'},
+  {k:'prop', name:'Campo da Basket', g:'G', price:330, foto:'campo_basket.jpeg'},
 ];
 const rentOf = s => Math.round(s.price*.04)*10;
 const START_MONEY=800, PASS_BONUS=150, QUIZ_PRIZE=60, MEET_IDX=12;
@@ -254,7 +351,7 @@ const QUIZ=[
 
 /* ---------- circolari ---------- */
 const CARDS=[
- {t:"Hai dato una mano a sistemare la biblioteca: la scuola ti ringrazia con 60 crediti.",fx:p=>give(p,60)},
+ {t:"Hai aiutato a riordinare la mensa: la scuola ti ringrazia con 60 crediti.",fx:p=>give(p,60)},
  {t:"Materiale nuovo per il laboratorio: la tua casa contribuisce con 50 crediti.",fx:p=>take(p,50)},
  {t:"Open day della scuola: ogni casa versa 20 crediti alla tua per l'ottima accoglienza.",fx:p=>collectFromAll(p,20)},
  {t:"Avanza fino all'Ingresso e ritira i 150 crediti del passaggio.",mv:true,fx:p=>moveTo(p,0)},
@@ -263,7 +360,7 @@ const CARDS=[
  {t:"Raccolta dei tappi di plastica: il riciclo frutta 40 crediti.",fx:p=>give(p,40)},
  {t:"Fotocopie a colori per il cartellone: paghi 30 crediti.",fx:p=>take(p,30)},
  {t:"La tua casa vince il torneo di basket del cortile: premio di 80 crediti.",fx:p=>give(p,80)},
- {t:"Giornata ecologica in giardino: il Comune premia la scuola, ricevi 40 crediti.",fx:p=>give(p,40)},
+ {t:"Giornata ecologica nel parco della piscina: la scuola ti premia con 40 crediti.",fx:p=>give(p,40)},
  {t:"Merenda equosolidale: offri la spesa, paghi 40 crediti.",fx:p=>take(p,40)},
  {t:"Il bidello ti presta il pallone nuovo: avanza di 2 caselle.",mv:true,fx:p=>moveFwd(p,2)},
 ];
@@ -313,142 +410,216 @@ function buildEnvironment(scene){
   const env=new THREE.Group(); scene.add(env);
   const mat=(c,r,m)=>new THREE.MeshStandardMaterial({color:c,roughness:r===undefined?.85:r,metalness:m||0});
   const M={
-    asphalt:mat(0x9AA2A9,1), grass:mat(0x69A24C,1),
-    grey:mat(0xA8A6A0,.9), greyDark:mat(0x5E6770,.9), band:mat(0x2F4258,.6),
-    white:mat(0xF2F2EE,.7), cream:mat(0xEFE6C6,.9), roof:mat(0xA5553F,.9),
-    pole:mat(0x7A8288,.6,.4), orange:mat(0xD9822B,.8),
+    asphalt:mat(0x9BA1A6,1), grass:mat(0x6BA24E,1), turf:mat(0x55884A,1),
+    white:mat(0xF2F2EE,.7), facade:mat(0xE9E7E0,.9),
+    glass:mat(0x9FBDD3,.3,.45),
+    yellow:mat(0xE4B85C,.9), cream:mat(0xEFE2C0,.9),
+    roof:mat(0xA5553F,.9), roofBlue:mat(0x5E7E9B,.7), dark:mat(0x4A4F55,.8),
+    pole:mat(0x7A8288,.6,.4), steel:mat(0x99A1A9,.5,.55), duct:mat(0xC2C7CC,.5,.4),
     trunk:mat(0x6B4A2F,1), leafA:mat(0x4E8C3A,1), leafB:mat(0x5FA047,1), leafC:mat(0x3F7A31,1),
-    fence:mat(0x8A9199,.6,.5), ring:mat(0xE85D2A,.5,.3),
+    fenceV:mat(0x4E7D50,.7,.3), ring:mat(0xE85D2A,.5,.3), wood:mat(0x9A7248,.85),
+    casaB:mat(0x3E7BD6,.8), casaG:mat(0xE3A81C,.8), casaV:mat(0x3E8E4E,.8), casaR:mat(0xC0452F,.8),
   };
-  const box=(w,h,d,m,x,y,z,ry,rx)=>{
+  const box=(w,h,d,m,x,y,z,ry,rx,rz)=>{
     const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);
     o.position.set(x,y,z);
-    if(ry)o.rotation.y=ry; if(rx)o.rotation.x=rx;
+    if(ry)o.rotation.y=ry; if(rx)o.rotation.x=rx; if(rz)o.rotation.z=rz;
     o.castShadow=true; o.receiveShadow=true; env.add(o); return o;
   };
-  const cyl=(r1,r2,h,m,x,y,z,rx)=>{
+  const cy=(r1,r2,h,m,x,y,z,rx)=>{
     const o=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,12),m);
     o.position.set(x,y,z);
     if(rx)o.rotation.x=rx;
     o.castShadow=true; env.add(o); return o;
   };
+
+  /* --- suolo: asfalto del cortile + grande prato a sud --- */
   const asph=new THREE.Mesh(new THREE.PlaneGeometry(260,260),M.asphalt);
   asph.rotation.x=-Math.PI/2; asph.position.y=GY-.03; asph.receiveShadow=true; env.add(asph);
-  const grass=new THREE.Mesh(new THREE.PlaneGeometry(70,110),M.grass);
-  grass.rotation.x=-Math.PI/2; grass.position.set(60,GY-.015,-4); grass.receiveShadow=true; env.add(grass);
+  const lawn=new THREE.Mesh(new THREE.PlaneGeometry(96,62),M.grass);
+  lawn.rotation.x=-Math.PI/2; lawn.position.set(10,GY-.015,43); lawn.receiveShadow=true; env.add(lawn);
+
+  /* --- il campo vero: bordeaux, aree celesti, disco centrale pieno --- */
   const W=38,H=21,PX=32;
   const cv=document.createElement('canvas'); cv.width=W*PX; cv.height=H*PX;
   const g=cv.getContext('2d');
   const X=x=>(x+W/2)*PX, Z=z=>(z+H/2)*PX;
-  g.fillStyle='#5E7E9B'; g.fillRect(0,0,cv.width,cv.height);
-  g.fillStyle='#C4674C'; g.fillRect(X(-16),Z(-8.5),32*PX,17*PX);
+  g.fillStyle='#6B8CA6'; g.fillRect(0,0,cv.width,cv.height);
+  g.fillStyle='#8A4136'; g.fillRect(X(-16),Z(-8.5),32*PX,17*PX);
   g.strokeStyle='#F5F2EA'; g.lineWidth=5; g.lineCap='round';
-  g.strokeRect(X(-16),Z(-8.5),32*PX,17*PX);
-  g.beginPath(); g.moveTo(X(0),Z(-8.5)); g.lineTo(X(0),Z(8.5)); g.stroke();
-  g.beginPath(); g.arc(X(0),Z(0),1.8*PX,0,Math.PI*2); g.stroke();
   for(const s of [-1,1]){
-    const bx=s*16, key=s*10.2, basket=s*14.8;
-    g.fillStyle='#5E7E9B';
-    g.fillRect(Math.min(X(bx),X(key)),Z(-2.45),Math.abs(X(bx)-X(key)),4.9*PX);
-    g.strokeRect(Math.min(X(bx),X(key)),Z(-2.45),Math.abs(X(bx)-X(key)),4.9*PX);
+    g.fillStyle='#7E99AC';
+    g.fillRect(Math.min(X(s*16),X(s*10.2)),Z(-2.45),Math.abs(X(s*16)-X(s*10.2)),4.9*PX);
+    g.strokeRect(Math.min(X(s*16),X(s*10.2)),Z(-2.45),Math.abs(X(s*16)-X(s*10.2)),4.9*PX);
     g.beginPath(); g.arc(X(s*10.2),Z(0),1.8*PX,0,Math.PI*2); g.stroke();
     g.beginPath();
-    g.arc(X(basket),Z(0),6.6*PX,(s>0?Math.PI/2+.15:-Math.PI/2+.15),(s>0?Math.PI*1.5-.15:Math.PI/2-.15));
+    g.arc(X(s*14.8),Z(0),6.6*PX,(s>0?Math.PI/2+.15:-Math.PI/2+.15),(s>0?Math.PI*1.5-.15:Math.PI/2-.15));
     g.stroke();
   }
+  g.fillStyle='#7E99AC';
+  g.beginPath(); g.arc(X(0),Z(0),1.8*PX,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(X(0),Z(0),1.8*PX,0,Math.PI*2); g.stroke();
+  g.strokeRect(X(-16),Z(-8.5),32*PX,17*PX);
+  g.beginPath(); g.moveTo(X(0),Z(-8.5)); g.lineTo(X(0),Z(8.5)); g.stroke();
   const courtTex=new THREE.CanvasTexture(cv);
   courtTex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
   const court=new THREE.Mesh(new THREE.PlaneGeometry(W,H),
     new THREE.MeshStandardMaterial({map:courtTex,roughness:.92}));
   court.rotation.x=-Math.PI/2; court.position.y=GY+.01; court.receiveShadow=true; env.add(court);
-  for(const s of [-1,1]){
-    const px=s*17.2;
-    cyl(.12,.14,3.6,M.pole,px,GY+1.8,0);
-    box(1.5,.12,.12,M.pole,px-s*.75,GY+3.35,0);
-    box(.06,1.05,1.8,M.white,px-s*1.55,GY+3.35,0);
-    box(.1,1.15,1.9,M.greyDark,px-s*1.48,GY+3.35,0);
-    const rim=new THREE.Mesh(new THREE.TorusGeometry(.23,.02,8,20),M.ring);
-    rim.rotation.x=Math.PI/2; rim.position.set(px-s*1.85,GY+3.05,0); env.add(rim);
-    const net=new THREE.Mesh(new THREE.CylinderGeometry(.23,.13,.4,10,1,true),
-      new THREE.MeshBasicMaterial({color:0xF2F2EE,wireframe:true}));
-    net.position.set(px-s*1.85,GY+2.83,0); env.add(net);
-  }
-  cyl(.1,.12,2.8,M.pole,24,GY+1.4,11);
-  box(1,.1,.1,M.pole,23.5,GY+2.7,11);
-  box(.05,.8,1.2,M.greyDark,22.95,GY+2.7,11);
-  const rim2=new THREE.Mesh(new THREE.TorusGeometry(.2,.02,8,18),M.ring);
-  rim2.rotation.x=Math.PI/2; rim2.position.set(22.7,GY+2.45,11); env.add(rim2);
-  function wing(cx,cz,len,alongX){
-    const w=alongX?len:9, d=alongX?9:len;
-    box(w,7.6,d,M.grey,cx,GY+3.8,cz);
-    box(w+(alongX?.4:.45),.3,d+(alongX?.45:.4),M.greyDark,cx,GY+7.7,cz);
-    const fx=alongX?cx:cx+4.53, fz=alongX?cz+4.53:cz;
-    if(alongX) box(len-4,1.7,.12,M.band,cx,GY+5.3,fz);
-    else       box(.12,1.7,len-4,M.band,fx,GY+5.3,cz);
-    const n=Math.floor((len-4)/3.4);
-    for(let i=0;i<=n;i++){
-      const t=-(len-4)/2+i*((len-4)/n);
-      if(alongX) box(.14,1.7,.16,M.white,cx+t,GY+5.3,fz+.01);
-      else       box(.16,1.7,.14,M.white,fx+.01,GY+5.3,cz+t);
+
+  /* --- canestro di ovest: su palo --- */
+  cy(.12,.14,3.6,M.pole,-16.6,GY+1.8,0);
+  box(1.5,.12,.12,M.pole,-15.85,GY+3.35,0);
+  box(.1,1.15,1.9,M.dark,-15.28,GY+3.35,0);
+  box(.06,1.05,1.8,M.white,-15.2,GY+3.35,0);
+  const rimW=new THREE.Mesh(new THREE.TorusGeometry(.23,.02,8,20),M.ring);
+  rimW.rotation.x=Math.PI/2; rimW.position.set(-14.9,GY+3.05,0); env.add(rimW);
+  const netW=new THREE.Mesh(new THREE.CylinderGeometry(.23,.13,.4,10,1,true),
+    new THREE.MeshBasicMaterial({color:0xF2F2EE,wireframe:true}));
+  netW.position.set(-14.9,GY+2.83,0); env.add(netW);
+
+  /* --- canestro di est: appeso al traliccio d'acciaio (come nel video) --- */
+  cy(.09,.11,4.6,M.steel,18.4,GY+2.3,-1.7);
+  cy(.09,.11,4.6,M.steel,18.4,GY+2.3,1.7);
+  box(.18,.18,3.8,M.steel,18.4,GY+4.6,0);
+  box(3.6,.16,.16,M.steel,16.7,GY+4.6,0);
+  box(.12,1.1,.12,M.steel,15.15,GY+4.0,0);
+  const tie=cy(.03,.03,2.5,M.steel,16.6,GY+5.15,0); tie.rotation.z=1.12;
+  box(.1,1.15,1.9,M.dark,15.28,GY+3.35,0);
+  box(.06,1.05,1.8,M.white,15.2,GY+3.35,0);
+  const rimE=new THREE.Mesh(new THREE.TorusGeometry(.23,.02,8,20),M.ring);
+  rimE.rotation.x=Math.PI/2; rimE.position.set(14.9,GY+3.05,0); env.add(rimE);
+  const netE=new THREE.Mesh(new THREE.CylinderGeometry(.23,.13,.4,10,1,true),
+    new THREE.MeshBasicMaterial({color:0xF2F2EE,wireframe:true}));
+  netE.position.set(14.9,GY+2.83,0); env.add(netE);
+
+  /* --- ali moderne bianche con grandi vetrate (nord ed est) --- */
+  function modernWing(cx,cz,len,alongX,face){
+    const w=alongX?len:9.5, d=alongX?9.5:len;
+    box(w,9.8,d,M.facade,cx,GY+4.9,cz);
+    box(w+.4,.3,d+.4,M.dark,cx,GY+9.9,cz);
+    const fx=alongX?cx:cx+face*4.85, fz=alongX?cz+face*4.85:cz;
+    if(alongX) box(len-2,2.6,.16,M.glass,cx,GY+1.4,fz+face*.02);
+    else box(.16,2.6,len-2,M.glass,fx+face*.02,GY+1.4,cz);
+    for(const wy of [GY+4.7,GY+7.5]){
+      if(alongX) box(len-3,1.7,.12,M.glass,cx,wy,fz+face*.01);
+      else box(.12,1.7,len-3,M.glass,fx+face*.01,wy,cz);
+      const n=Math.floor((len-3)/2.2);
+      for(let i=0;i<=n;i++){
+        const t=-(len-3)/2+i*((len-3)/n);
+        if(alongX) box(.1,1.7,.15,M.white,cx+t,wy,fz+face*.02);
+        else box(.15,1.7,.1,M.white,fx+face*.02,wy,cz+t);
+      }
     }
-    if(alongX) box(len-2,2.8,.14,M.greyDark,cx,GY+1.4,fz-.1);
-    else       box(.14,2.8,len-2,M.greyDark,fx-.1,GY+1.4,cz);
-    const nc=Math.floor((len-2)/3.8);
+    const nc=Math.floor((len-2)/2.6);
     for(let i=0;i<=nc;i++){
       const t=-(len-2)/2+i*((len-2)/nc);
-      if(alongX) box(.4,2.8,.4,M.white,cx+t,GY+1.4,fz+.15);
-      else       box(.4,2.8,.4,M.white,fx+.15,GY+1.4,cz+t);
+      if(alongX) box(.14,2.6,.2,M.white,cx+t,GY+1.4,fz+face*.03);
+      else box(.2,2.6,.14,M.white,fx+face*.03,GY+1.4,cz+t);
     }
   }
-  wing(-27,-1,46,false);
-  wing(2,-20,44,true);
-  box(8,6.8,8,M.cream,-16.5,GY+3.4,-13.5);
-  box(7.9,1.7,7.9,M.cream,-16.5,GY+7.2,-13.5);
-  box(8.8,.14,4.9,M.roof,-16.5,GY+7.55,-15.45,0,.38);
-  box(8.8,.14,4.9,M.roof,-16.5,GY+7.55,-11.55,0,-.38);
-  box(9,.14,.3,M.roof,-16.5,GY+8.42,-13.5);
-  box(6,.16,1.8,M.cream,-16.5,GY+3.5,-8.6);
-  box(6,.06,.06,M.fence,-16.5,GY+4.45,-7.75);
-  for(let i=0;i<=12;i++) box(.05,.95,.05,M.fence,-19.5+i*.5,GY+3.98,-7.75);
-  for(let i=0;i<9;i++)
-    box(1.5,.14,.5,M.cream,-12.9,GY+3.3-i*.38,-8.2+i*.46);
-  const ends=[[-25,GY+4.6,7,0xE84393],[-21,GY+4.4,11,0x37B36B],[-26,GY+4.2,2,0x3B8BD9]];
-  for(const [ex,ey,ez,col] of ends){
-    const a=new THREE.Vector3(-13.5,GY+4.6,-8.2), b=new THREE.Vector3(ex,ey,ez);
-    const mid=a.clone().lerp(b,.5); mid.y-=.7;
-    const curve=new THREE.CatmullRomCurve3([a,mid,b]);
-    const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,24,.055,6),mat(col,.6));
-    env.add(tube);
-    cyl(.04,.05,ey-GY,M.pole,ex,(ey+GY)/2,ez);
+  modernWing(1,-16.2,44,true,1);      // ala nord
+  modernWing(24.8,-3,22,false,-1);    // ala est
+  /* accenti colorati sulle cornici delle finestre (come nelle foto) */
+  box(.12,1.7,.5,M.casaR,6,GY+4.7,-11.28);
+  box(.12,1.7,.5,M.casaG,-8,GY+7.5,-11.28);
+  box(.12,1.7,.5,M.casaV,14,GY+7.5,-11.28);
+  box(.5,1.7,.12,M.casaG,19.88,GY+4.7,2);
+  /* tubazioni verticali dell'ala est */
+  for(const dz of [-6.5,-5.2,-3.9]) cy(.2,.2,8.8,M.duct,19.85,GY+4.4,dz);
+
+  /* --- edificio giallo con tetto rosso (ovest) + blocco crema --- */
+  box(9.5,6.2,16,M.yellow,-25.2,GY+3.1,-1);
+  box(9.7,1.5,15.6,M.yellow,-25.2,GY+6.6,-1);
+  box(5.4,.14,17,M.roof,-23.2,GY+7.05,-1,0,0,.42);
+  box(5.4,.14,17,M.roof,-27.2,GY+7.05,-1,0,0,-.42);
+  box(.3,.14,17.2,M.roof,-25.2,GY+8.05,-1);
+  for(const wy of [GY+2.2,GY+4.7])
+    for(let zz=-7;zz<=5;zz+=2.4)
+      box(.12,1.3,1.1,M.white,-20.42,wy,zz);
+  box(8.5,8.8,9.5,M.cream,-25.5,GY+4.4,-14.8);
+  box(8.9,.3,9.9,M.dark,-25.5,GY+8.9,-14.8);
+  for(const wy of [GY+3.2,GY+6.2])
+    for(let zz=-17.8;zz<=-11.8;zz+=2)
+      box(.12,1.2,1,M.white,-21.22,wy,zz);
+  /* corpo basso di raccordo con tetto in lamiera blu */
+  box(4.2,3,7,M.cream,-21,GY+1.5,-9.5);
+  box(4.8,.12,7.6,M.roofBlue,-21,GY+3.3,-9.5,0,0,.2);
+
+  /* --- tettoia con i pannelli colorati (davanti all'edificio giallo) --- */
+  box(3,.16,11,M.dark,-18.4,GY+2.7,-2.5);
+  for(const zz of [-7.5,-5,-2.5,0,2.5]) cy(.08,.08,2.7,M.white,-17.1,GY+1.35,zz);
+  [M.casaR,M.casaV,M.casaB,M.casaG].forEach((pm,i)=>{
+    box(.12,1.05,1.6,pm,-19.7,GY+.55,-6.5+i*2);
+  });
+
+  /* --- parco giochi dell'infanzia con staccionata bianca (angolo NO) --- */
+  for(let px=-19;px<=-13;px+=.45) box(.06,.7,.06,M.white,px,GY+.35,-9.4);
+  box(6.2,.05,.05,M.white,-16,GY+.62,-9.4);
+  for(let pz=-11;pz<=-9.6;pz+=.45) box(.06,.7,.06,M.white,-13,GY+.35,pz);
+  box(1.2,1,1.1,M.casaR,-17.5,GY+.5,-10.4);
+  box(1.4,.08,.7,M.casaV,-17.5,GY+1.15,-10.7,0,.5);
+  box(1.4,.08,.7,M.casaV,-17.5,GY+1.15,-10.1,0,-.5);
+  box(.8,.1,1.6,M.casaV,-14.8,GY+.6,-10.3,0,.55);
+  box(.6,.9,.08,M.casaG,-14.8,GY+.45,-9.55);
+
+  /* --- campo verde da volley con rete e porticine (a sud) --- */
+  const turf=new THREE.Mesh(new THREE.PlaneGeometry(26,10),M.turf);
+  turf.rotation.x=-Math.PI/2; turf.position.set(-1,GY+.008,16.2); turf.receiveShadow=true; env.add(turf);
+  box(18,.012,.08,M.white,-1,GY+.02,11.7);
+  box(18,.012,.08,M.white,-1,GY+.02,20.7);
+  box(.08,.012,9,M.white,-10,GY+.02,16.2);
+  box(.08,.012,9,M.white,8,GY+.02,16.2);
+  cy(.05,.05,2.4,M.pole,-1,GY+1.2,11.9);
+  cy(.05,.05,2.4,M.pole,-1,GY+1.2,20.5);
+  const vnet=new THREE.Mesh(new THREE.BoxGeometry(.04,.8,8.6),
+    new THREE.MeshBasicMaterial({color:0xF2F2EE,wireframe:true}));
+  vnet.position.set(-1,GY+1.8,16.2); env.add(vnet);
+  for(const gx of [-9.7,7.7]){
+    cy(.05,.05,1.6,M.white,gx,GY+.8,14.7);
+    cy(.05,.05,1.6,M.white,gx,GY+.8,17.7);
+    box(.1,.1,3.1,M.white,gx,GY+1.6,16.2);
   }
-  const trees=[[-20,17],[-14,18.5],[-8,17.5],[-2,18],[4,17],[10,18.5],[16,17.5],[22,18],[28,17],[34,18],
-               [40,14],[46,10],[52,4],[54,-4],[52,-12],[46,-18],[40,-22]];
-  trees.forEach(([tx,tz],i)=>{
+
+  /* --- recinzione verde tra il campo e il prato --- */
+  for(let fx2=-16;fx2<=12;fx2+=2.8) cy(.04,.04,1.1,M.fenceV,fx2,GY+.55,21.8);
+  for(const hy of [.35,.7,1.02]) box(28.5,.04,.04,M.fenceV,-2,GY+hy,21.8);
+
+  /* --- prato: porta da calcio, filare di platani con le panchine --- */
+  cy(.06,.06,2.1,M.white,1,GY+1.05,31);
+  cy(.06,.06,2.1,M.white,6,GY+1.05,31);
+  box(5.2,.1,.1,M.white,3.5,GY+2.1,31);
+  for(let i=0;i<6;i++){
+    const tz=13+i*6.2, lm=[M.leafA,M.leafB,M.leafC][i%3];
+    cy(.28,.4,4.4,M.trunk,24.5,GY+2.2,tz);
+    const s1=new THREE.Mesh(new THREE.SphereGeometry(2.4,10,8),lm);
+    s1.position.set(24.5,GY+6,tz); s1.castShadow=true; env.add(s1);
+    const s2=new THREE.Mesh(new THREE.SphereGeometry(1.7,10,8),lm);
+    s2.position.set(25.5,GY+4.9,tz+.7); s2.castShadow=true; env.add(s2);
+    box(2.1,.08,.45,M.wood,22.3,GY+.48,tz+2);
+    box(.08,.44,.4,M.dark,21.5,GY+.24,tz+2);
+    box(.08,.44,.4,M.dark,23.1,GY+.24,tz+2);
+  }
+  /* alberi sparsi e siepe di fondo */
+  [[-6,34],[-2,47],[34,28],[40,42],[14,53],[-14,28]].forEach(([tx,tz],i)=>{
     const lm=[M.leafA,M.leafB,M.leafC][i%3];
-    cyl(.22,.32,2.4,M.trunk,tx,GY+1.2,tz);
-    const s1=new THREE.Mesh(new THREE.SphereGeometry(1.7,10,8),lm);
-    s1.position.set(tx,GY+3.7,tz); s1.castShadow=true; env.add(s1);
-    const s2=new THREE.Mesh(new THREE.SphereGeometry(1.2,10,8),lm);
-    s2.position.set(tx+.9,GY+3,tz+.5); s2.castShadow=true; env.add(s2);
+    cy(.2,.3,2.4,M.trunk,tx,GY+1.2,tz);
+    const s1=new THREE.Mesh(new THREE.SphereGeometry(1.6,10,8),lm);
+    s1.position.set(tx,GY+3.6,tz); s1.castShadow=true; env.add(s1);
   });
-  function fenceRun(x0,z0,x1,z1){
-    const dx=x1-x0, dz=z1-z0, L=Math.hypot(dx,dz), n=Math.round(L/3.2);
-    for(let i=0;i<=n;i++) cyl(.05,.05,1.15,M.fence,x0+dx*i/n,GY+.57,z0+dz*i/n);
-    for(const hy of [.35,.7,1.05])
-      box(L,.045,.045,M.fence,(x0+x1)/2,GY+hy,(z0+z1)/2,Math.atan2(dx,dz)-Math.PI/2);
+  for(let hx=-8;hx<=48;hx+=14) box(12,1.3,1,M.leafC,hx,GY+.65,58);
+
+  /* --- nastri colorati tesi sopra il cortile (come nelle foto) --- */
+  const RIBBONS=[[0xF2F2EE,-12,-8],[0xE3C84A,-6,-2],[0x37B3A0,0,4],[0x3B8BD9,6,9],[0xE884B0,12,13]];
+  for(const [col,x0,x1] of RIBBONS){
+    const a=new THREE.Vector3(x0,GY+6.1,-11.4), b=new THREE.Vector3(x1,GY+4.7,11.2);
+    const mid=a.clone().lerp(b,.5); mid.y-=.5;
+    const curve=new THREE.CatmullRomCurve3([a,mid,b]);
+    const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,20,.03,5),mat(col,.6));
+    env.add(tube);
+    cy(.03,.04,4.9,M.pole,x1,GY+2.45,11.2);
   }
-  fenceRun(-22,13.5,37,13.5);
-  fenceRun(37,13.5,37,-16);
-  [[26,4,.2],[30.5,7,-.15],[26.5,9.5,.4],[31,1.5,0]].forEach(([tx,tz,ry])=>{
-    box(2.2,.08,.9,M.orange,tx,GY+.72,tz,ry);
-    box(.08,.68,.8,M.greyDark,tx-.95,GY+.34,tz,ry);
-    box(.08,.68,.8,M.greyDark,tx+.95,GY+.34,tz,ry);
-    box(2.2,.06,.32,M.orange,tx-.62*Math.sin(ry+Math.PI/2),GY+.42,tz-.62*Math.cos(ry+Math.PI/2),ry);
-    box(2.2,.06,.32,M.orange,tx+.62*Math.sin(ry+Math.PI/2),GY+.42,tz+.62*Math.cos(ry+Math.PI/2),ry);
-  });
-  cyl(.05,.05,1.9,M.white,46,GY+.95,-6);
-  cyl(.05,.05,1.9,M.white,46,GY+.95,-10);
-  cyl(.05,.05,4.1,M.white,46,GY+1.9,-8,Math.PI/2);
+
   return env;
 }
 buildEnvironment(scene);
@@ -472,7 +643,7 @@ function tileCenter(i){
 const sideOf=i=> i<=5?0 : i<=11?1 : i<=17?2 : 3;   // 0 sud, 1 ovest, 2 nord, 3 est
 const SIDE_ROT=[0, -Math.PI/2, Math.PI, Math.PI/2];
 
-function tileTexture(sp){
+function tileTexture(sp, ph){
   const c=document.createElement('canvas'); c.width=256; c.height=310;
   const g=c.getContext('2d');
   g.fillStyle='#EDE7D6'; g.fillRect(0,0,256,310);
@@ -493,9 +664,20 @@ function tileTexture(sp){
     g.fillStyle=GROUPS[sp.g]; g.fillRect(3,3,250,56);
     g.strokeRect(3,3,250,56);
     g.fillStyle='#2A2013';
-    wrap(sp.name,120,30);
-    g.font='700 34px Lexend, sans-serif';
-    g.fillText(sp.price+' cr',128,268);
+    if(ph){
+      wrap(sp.name,92,24);
+      const rw=228,rh=124,rx=14,ry=140;
+      const sc=Math.max(rw/ph.width,rh/ph.height);
+      const sw=rw/sc, sh=rh/sc;
+      g.drawImage(ph,(ph.width-sw)/2,(ph.height-sh)/2,sw,sh,rx,ry,rw,rh);
+      g.strokeStyle='#3A2E1E'; g.lineWidth=4; g.strokeRect(rx,ry,rw,rh);
+      g.fillStyle='#2A2013'; g.font='700 28px Lexend, sans-serif';
+      g.fillText(sp.price+' cr',128,296);
+    } else {
+      wrap(sp.name,120,30);
+      g.font='700 34px Lexend, sans-serif';
+      g.fillText(sp.price+' cr',128,268);
+    }
   } else if(sp.k==='quiz'){
     g.fillStyle='#123E90'; g.beginPath(); g.arc(128,120,52,0,Math.PI*2); g.fill();
     g.fillStyle='#FFFFFF'; g.font='700 72px Lexend, sans-serif'; g.fillText('?',128,146);
@@ -525,10 +707,12 @@ function tileTexture(sp){
 }
 const paperSide=new THREE.MeshStandardMaterial({color:0xD8CFB8,roughness:.85});
 const tileMeshes=[];
+const PHOTOS={};
+function buildBoardTiles(){
 SPACES.forEach((sp,i)=>{
   const [cx,cz]=tileCenter(i);
   const corner=(i%6===0);
-  const topMat=new THREE.MeshStandardMaterial({map:tileTexture(sp),roughness:.8});
+  const topMat=new THREE.MeshStandardMaterial({map:tileTexture(sp, sp.foto?PHOTOS[sp.foto]:null),roughness:.8});
   const geo=new THREE.BoxGeometry(corner?CORNER:EDGE,.09,CORNER);
   const mats=[paperSide,paperSide,topMat,paperSide,paperSide,paperSide];
   const m=new THREE.Mesh(geo,mats);
@@ -537,6 +721,7 @@ SPACES.forEach((sp,i)=>{
   m.castShadow=true; m.receiveShadow=true;
   boardGroup.add(m); tileMeshes.push(m);
 });
+}
 /* centro del tabellone: titolo + i 4 personaggi */
 (function(){
   const c=document.createElement('canvas'); c.width=640; c.height=320;
@@ -547,7 +732,7 @@ SPACES.forEach((sp,i)=>{
   g.font='700 64px Lexend, sans-serif'; g.fillText('MONOPOLI',320,130);
   g.font='700 48px Lexend, sans-serif'; g.fillText('DELLA SCUOLA',320,195);
   g.font='600 30px Lexend, sans-serif'; g.fillStyle='#D4A017';
-  g.fillText('I Giochi delle Case',320,258);
+  g.fillText('Game 3D',320,258);
   const tex=new THREE.CanvasTexture(c);
   const m=new THREE.Mesh(new THREE.PlaneGeometry(4.6,2.3),
     new THREE.MeshStandardMaterial({map:tex,roughness:.85}));
@@ -556,16 +741,19 @@ SPACES.forEach((sp,i)=>{
   const loader=new THREE.TextureLoader();
   HOUSES.forEach((h,i)=>{
     loader.load(h.img,tex2=>{
-      /* due facce accoppiate: l'immagine è corretta da entrambi i lati */
+      /* due facce accoppiate: l'immagine è corretta da entrambi i lati;
+         il piano rispetta le proporzioni reali dell'immagine */
+      const ar=tex2.image.width/tex2.image.height;
+      const ph=1.6, pw=Math.min(2.4,ph*ar);
       const st=new THREE.Group();
       for(const ry of [0,Math.PI]){
-        const f=new THREE.Mesh(new THREE.PlaneGeometry(2.1,1.4),
+        const f=new THREE.Mesh(new THREE.PlaneGeometry(pw,ph),
           new THREE.MeshBasicMaterial({map:tex2}));
         f.rotation.y=ry; f.position.z=ry?-.001:.001;
         st.add(f);
       }
       const px=[-2.6,2.6,-2.6,2.6][i], pz=[2.6,2.6,-2.6,-2.6][i];
-      st.position.set(px,BY+.72,pz);
+      st.position.set(px,BY+ph/2+.02,pz);
       st.rotation.y=Math.atan2(px,pz);
       boardGroup.add(st);
     });
@@ -754,7 +942,8 @@ function setActions(list){
     b.addEventListener('click',fn);
     bar.appendChild(b);
   }
-  const extra=[['Classifica',()=>openRank(false),1],['Info',()=>$('infoOv').classList.add('show'),1]];
+  const extra=[['Classifica',()=>openRank(false),1],['Info',()=>$('infoOv').classList.add('show'),1],
+    ['Audio: '+(SFX.on?'ON':'OFF'),function(){ this.textContent='Audio: '+(SFX.toggle()?'ON':'OFF'); },1]];
   for(const [label,fn] of extra){
     const b=document.createElement('button');
     b.className='btn ghost'; b.textContent=label;
@@ -768,9 +957,11 @@ function setActions(list){
 
 /* ---------- overlay helper ---------- */
 function who(el,p){ el.innerHTML='<img src="'+p.h.img+'" alt=""><span style="color:'+p.h.ui+'">'+p.h.name+'</span>'; }
-function showMsg(p,title,text,card,btns){
+function showMsg(p,title,text,card,btns,photo){
   who($('msgWho'),p);
   $('msgTitle').textContent=title;
+  const mp=$('msgPhoto');
+  if(photo){ mp.src=photo; mp.style.display='block'; } else mp.style.display='none';
   $('msgText').textContent=text||'';
   const mc=$('msgCard');
   if(card){ mc.style.display='block'; mc.textContent=card; } else mc.style.display='none';
@@ -802,8 +993,8 @@ function askQuiz(p,intro,onDone){
       b.classList.add(ok?'good':'miss');
       box.children[Q.k].classList.add('good');
       const fb=$('quizFb');
-      if(ok){ fb.textContent='Risposta esatta, ben fatto!'; fb.classList.add('ok'); }
-      else  { fb.textContent='Non era questa: la risposta giusta è evidenziata. Andrà meglio al prossimo quesito!'; fb.classList.add('amber'); }
+      if(ok){ fb.textContent='Risposta esatta, ben fatto!'; fb.classList.add('ok'); SFX.good(); }
+      else  { fb.textContent='Non era questa: la risposta giusta è evidenziata. Andrà meglio al prossimo quesito!'; fb.classList.add('amber'); SFX.bad(); }
       const cont=document.createElement('button');
       cont.className='btn'; cont.textContent='Continua';
       cont.addEventListener('click',()=>{ $('quizOv').classList.remove('show'); onDone(ok); });
@@ -812,12 +1003,13 @@ function askQuiz(p,intro,onDone){
     box.appendChild(b);
   });
   $('quizOv').classList.add('show');
+  SFX.pop();
 }
 
 /* ---------- economia ---------- */
-function give(p,n){ p.money+=n; updateHUD(); }
+function give(p,n){ p.money+=n; updateHUD(); SFX.coin(); }
 function take(p,n){ p.money-=n; updateHUD(); }
-function transfer(from,to,n){ from.money-=n; to.money+=n; updateHUD(); }
+function transfer(from,to,n){ from.money-=n; to.money+=n; updateHUD(); SFX.coin(); }
 function patrimonio(p){
   let v=p.money;
   SPACES.forEach((s,i)=>{ if(owner[i]===p.idx) v+=s.price; });
@@ -839,9 +1031,10 @@ function checkBankrupt(p,then){
   });
   if(p.token) p.token.visible=false;
   updateHUD();
+  SFX.bad();
   const alive=players.filter(q=>!q.out);
   showMsg(p,'Crediti esauriti',
-    p.h.name+' ha finito i crediti: le sue aule tornano disponibili. Il gioco continua tra le case rimaste.',null,
+    p.h.name+' ha finito i crediti: i suoi luoghi tornano disponibili. Il gioco continua tra le case rimaste.',null,
     [['Continua',()=>{ if(alive.length<=1) finish(); else then&&then(); }]]);
 }
 
@@ -883,6 +1076,7 @@ function rollDice(forceA,forceB){
   const p=players[current];
   const a=forceA||1+Math.floor(Math.random()*6);
   const b=forceB||1+Math.floor(Math.random()*6);
+  SFX.dice();
   dice.forEach((d,i)=>{
     d.visible=true;
     const x0=(i?1:-1)*.8, z0=1.4;
@@ -917,6 +1111,7 @@ function moveSteps(p,n,done){
     p.pos=(p.pos+1)%SPACES.length;
     if(p.pos===0){ give(p,PASS_BONUS); setStatus(p.h.name+' passa dall’Ingresso: +'+PASS_BONUS+' cr', p.h); }
     const to=tokenPos(p);
+    SFX.hop();
     tween(190,e=>{
       p.token.position.lerpVectors(from,to,e);
       p.token.position.y=BY+Math.sin(e*Math.PI)*.28;
@@ -938,6 +1133,7 @@ function moveBack(p,n){
   });
 }
 function sendToMeet(p){
+  SFX.swooshDown();
   p.pos=MEET_IDX; p.skip=1;
   const to=tokenPos(p);
   tween(600,e=>{
@@ -961,11 +1157,11 @@ function resolveTile(p,ctx){
         if(ok){
           if(p.money>=sp.price){
             showMsg(p,sp.name,'Risposta esatta! Puoi comprare '+sp.name+' per '+sp.price+' cr. Affitto: '+rentOf(sp)+' cr (doppio con la coppia completa).',null,[
-              ['Compra per '+sp.price+' cr',()=>{ p.money-=sp.price; owner[p.pos]=p.idx; markOwner(p.pos,p); updateHUD(); setStatus(sp.name+' è di '+p.h.name+'!', p.h); finish(); }],
+              ['Compra per '+sp.price+' cr',()=>{ p.money-=sp.price; owner[p.pos]=p.idx; markOwner(p.pos,p); updateHUD(); SFX.ding(); setStatus(sp.name+' è di '+p.h.name+'!', p.h); finish(); }],
               ['Non compro',finish,1],
-            ]);
+            ],sp.foto);
           } else {
-            showMsg(p,sp.name,'Risposta esatta, ma i crediti non bastano ('+sp.price+' cr).',null,[['Continua',finish]]);
+            showMsg(p,sp.name,'Risposta esatta, ma i crediti non bastano ('+sp.price+' cr).',null,[['Continua',finish]],sp.foto);
           }
         } else {
           setStatus('Niente acquisto questa volta', null, true);
@@ -991,7 +1187,7 @@ function resolveTile(p,ctx){
             checkBankrupt(p,finish);
           });
         },1],
-      ]);
+      ],sp.foto);
     }
   } else if(sp.k==='quiz'){
     askQuiz(p,'quiz a sorpresa', ok=>{
@@ -1001,6 +1197,7 @@ function resolveTile(p,ctx){
     });
   } else if(sp.k==='circ'){
     const card=CARDS[Math.floor(Math.random()*CARDS.length)];
+    SFX.swoosh();
     showMsg(p,'Circolare della scuola','',card.t,[
       ['Esegui',()=>{
         card.fx(p);
@@ -1025,6 +1222,7 @@ function resolveTile(p,ctx){
   }
 }
 function againOrEnd(p){
+  SFX.click();
   setStatus('Doppio! '+p.h.name+' tira ancora', p.h);
   phase='roll';
   setActions([['Lancia di nuovo',()=>rollDice()]]);
@@ -1055,14 +1253,14 @@ function openRank(final){
     row.className='rankrow';
     row.innerHTML='<span class="ranknum">'+(i+1)+'</span><img src="'+p.h.img+'" alt="">'+
       '<div><div class="rn" style="color:'+p.h.ui+'">'+p.h.name+(p.out?' (fuori gioco)':'')+'</div>'+
-      '<div class="rd">'+p.money+' cr in cassa · '+nProps+' aule</div></div>'+
+      '<div class="rd">'+p.money+' cr in cassa · '+nProps+' luoghi</div></div>'+
       '<span class="rv">'+(p.out?'—':patrimonio(p)+' cr')+'</span>';
     rows.appendChild(row);
   });
   $('rankTitle').textContent = final ? 'Vince '+sorted[0].h.name+'!' : 'Classifica';
   $('rankSub').textContent = final
-    ? 'Patrimonio finale: crediti in cassa più il valore delle aule.'
-    : 'Patrimonio attuale (crediti + valore delle aule). La partita continua.';
+    ? 'Patrimonio finale: crediti in cassa più il valore dei luoghi.'
+    : 'Patrimonio attuale (crediti + valore dei luoghi). La partita continua.';
   $('rankMeta').style.display = final?'block':'none';
   const bb=$('rankBtns'); bb.innerHTML='';
   if(final){
@@ -1086,6 +1284,7 @@ function openRank(final){
   $('rankOv').classList.add('show');
 }
 function finish(){
+  SFX.fanfare();
   $('rankOv').classList.remove('show');
   openRank(true);
   setActions([]);
@@ -1133,6 +1332,13 @@ $('infoClose').addEventListener('click',()=>$('infoOv').classList.remove('show')
 /* ---------- avvio ---------- */
 async function init(){
   try{ await document.fonts.load('700 34px Lexend'); await document.fonts.ready; }catch(e){}
+  await Promise.all(SPACES.filter(sp=>sp.foto).map(sp=>new Promise(res=>{
+    const im=new Image();
+    im.onload=()=>{ PHOTOS[sp.foto]=im; res(); };
+    im.onerror=()=>res();
+    im.src=sp.foto;
+  })));
+  buildBoardTiles();
   players.forEach(p=>{
     p.token=buildToken(p.h);
     scene.add(p.token);
