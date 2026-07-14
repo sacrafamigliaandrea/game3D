@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Scacchi delle Case — I Giochi delle Case</title>
+<title>Scacchi delle Case — Game 3D</title>
 <link rel="icon" href="logo.png">
 <link rel="apple-touch-icon" href="logo.png">
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
@@ -114,10 +114,9 @@ button:focus-visible,.house-card:focus-visible,a.btn:focus-visible{outline:3px s
 <!-- ============ SELEZIONE DELLE CASE ============ -->
 <div class="screen" id="selectScreen">
   <div class="brand">
-    <img src="logo.png" alt="Logo Scuola Sacra Famiglia">
-    <div>
+    <div style="text-align:center">
       <div class="t1">Scacchi delle Case</div>
-      <div class="t2">I Giochi delle Case · Scuola Sacra Famiglia · Orzinuovi</div>
+      <div class="t2">Game 3D · Scuola Sacra Famiglia · Orzinuovi</div>
     </div>
   </div>
   <p class="sub">La scacchiera è pronta al centro del campo da basket del cortile.
@@ -163,6 +162,7 @@ button:focus-visible,.house-card:focus-visible,a.btn:focus-visible{outline:3px s
     <button class="btn ghost" id="viewBtn">Vista di chi muove</button>
     <button class="btn ghost" id="autoBtn">Auto-vista: ON</button>
     <button class="btn ghost" id="newBtn">Nuove squadre</button>
+    <button class="btn ghost" id="sfxBtn">Audio: ON</button>
     <a class="btn ghost" href="index.html">Altri giochi</a>
     <button class="btn ghost" id="infoBtn">Info</button>
   </div>
@@ -226,6 +226,101 @@ button:focus-visible,.house-card:focus-visible,a.btn:focus-visible{outline:3px s
 <script>
 'use strict';
 /* =====================================================================
+   EFFETTI SONORI — Web Audio API, tutto sintetizzato (nessun file).
+   L'AudioContext parte solo dopo il primo gesto dell'utente (regola
+   iOS/Chrome). Preferenza ON/OFF salvata per tutta la suite.
+   Modulo condiviso da scacchi.html, monopoli.html e tesoro.html.
+   ===================================================================== */
+const SFX=(()=>{
+  const store={
+    get(){ try{ return localStorage.getItem('giochiCaseAudio'); }catch(e){ return null; } },
+    set(v){ try{ localStorage.setItem('giochiCaseAudio',v); }catch(e){} },
+  };
+  let ctx=null, master=null, on=store.get()!=='off';
+  function ensure(){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC) return null;
+    if(!ctx){
+      ctx=new AC();
+      master=ctx.createGain(); master.gain.value=.22; master.connect(ctx.destination);
+    }
+    if(ctx.state==='suspended') ctx.resume();
+    return ctx;
+  }
+  window.addEventListener('pointerdown',ensure,{once:true});
+  window.addEventListener('keydown',ensure,{once:true});
+  function tone(o){
+    if(!on||!ensure()) return;
+    const t0=ctx.currentTime+(o.at||0);
+    const osc=ctx.createOscillator(), g=ctx.createGain();
+    osc.type=o.type||'sine';
+    osc.frequency.setValueAtTime(o.f0,t0);
+    if(o.f1) osc.frequency.exponentialRampToValueAtTime(Math.max(30,o.f1),t0+o.dur);
+    g.gain.setValueAtTime(0,t0);
+    g.gain.linearRampToValueAtTime(o.vol||.5,t0+(o.a||.008));
+    g.gain.exponentialRampToValueAtTime(.001,t0+o.dur);
+    osc.connect(g); g.connect(master);
+    osc.start(t0); osc.stop(t0+o.dur+.05);
+  }
+  function noise(o){
+    if(!on||!ensure()) return;
+    const t0=ctx.currentTime+(o.at||0), dur=o.dur;
+    const len=Math.max(1,Math.floor(ctx.sampleRate*dur));
+    const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const f=ctx.createBiquadFilter();
+    f.type=o.ftype||'lowpass';
+    f.frequency.setValueAtTime(o.freq||1200,t0);
+    if(o.freq1) f.frequency.exponentialRampToValueAtTime(o.freq1,t0+dur);
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(0,t0);
+    g.gain.linearRampToValueAtTime(o.vol||.4,t0+.006);
+    g.gain.exponentialRampToValueAtTime(.001,t0+dur);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start(t0); src.stop(t0+dur+.05);
+  }
+  const api={
+    get on(){ return on; },
+    toggle(){ on=!on; store.set(on?'on':'off'); if(on) api.click(); return on; },
+    /* suoni base */
+    click:   ()=>tone({f0:880,dur:.06,type:'triangle',vol:.25}),
+    pop:     ()=>tone({f0:520,f1:760,dur:.09,vol:.35}),
+    toc:     ()=>{ noise({dur:.05,freq:900,vol:.5}); tone({f0:190,f1:120,dur:.09,vol:.5}); },
+    thud:    ()=>{ noise({dur:.08,freq:500,vol:.55}); tone({f0:140,f1:70,dur:.16,vol:.6}); },
+    swoosh:    ()=>noise({dur:.28,ftype:'bandpass',freq:400,freq1:1800,vol:.35}),
+    swooshDown:()=>noise({dur:.26,ftype:'bandpass',freq:1600,freq1:300,vol:.35}),
+    /* feedback e premi */
+    ding:    ()=>{ tone({f0:1320,dur:.22,type:'triangle',vol:.35}); tone({f0:1760,dur:.3,type:'triangle',vol:.25,at:.07}); },
+    coin:    ()=>{ tone({f0:988,dur:.08,type:'square',vol:.16}); tone({f0:1319,dur:.22,type:'square',vol:.14,at:.08}); },
+    good:    ()=>[523,659,784].forEach((n,i)=>tone({f0:n,dur:.16,type:'triangle',vol:.4,at:i*.09})),
+    bad:     ()=>{ tone({f0:392,dur:.16,vol:.35}); tone({f0:330,dur:.24,vol:.3,at:.14}); },
+    alert:   ()=>{ tone({f0:660,dur:.12,type:'square',vol:.18}); tone({f0:880,dur:.18,type:'square',vol:.18,at:.13}); },
+    fanfare: ()=>[523,659,784,1047].forEach((n,i)=>tone({f0:n,dur:i===3?.5:.18,type:'triangle',vol:.4,at:i*.13})),
+    sparkle: ()=>[1047,1319,1568,2093].forEach((n,i)=>tone({f0:n,dur:.12,vol:.22,at:i*.05})),
+    magic(){
+      [392,523,659,784,1047].forEach((n,i)=>tone({f0:n,dur:.3,vol:.16,at:i*.06}));
+      noise({dur:.5,ftype:'bandpass',freq:900,freq1:2600,vol:.12});
+    },
+    /* movimento */
+    hop:  ()=>tone({f0:430+Math.random()*130,f1:660,dur:.08,vol:.28}),
+    dice(){
+      if(!on||!ensure()) return;
+      for(let i=0;i<7;i++)
+        noise({dur:.03,ftype:'bandpass',freq:2000+Math.random()*1600,vol:.4,at:i*.09+Math.random()*.03});
+      tone({f0:220,f1:90,dur:.12,vol:.4,at:.72});
+      noise({dur:.07,freq:700,vol:.4,at:.7});
+    },
+    chestOpen(){
+      tone({f0:110,f1:220,dur:.5,type:'sawtooth',vol:.2});
+      [523,659,784,1047,1319].forEach((n,i)=>tone({f0:n,dur:.2,type:'triangle',vol:.3,at:.25+i*.09}));
+    },
+  };
+  return api;
+})();
+
+/* =====================================================================
    SCACCHI DELLE CASE — single file, vanilla JS + Three.js r128
    Scacchiera al centro del campo da basket del cortile (da 3.jpg),
    pezzi caratterizzati come le mascotte delle 4 case.
@@ -233,13 +328,13 @@ button:focus-visible,.house-card:focus-visible,a.btn:focus-visible{outline:3px s
 
 /* ---------- LE QUATTRO CASE ---------- */
 const HOUSES = [
-  { id:'aquila',  name:'Aquila Blu',    img:'AquilaBlu.png',
+  { id:'aquila',  name:'Aquila Blu',    img:'Aquila_chess.png',
     ui:'#3E7BD6', uiText:'#FFFFFF', main:0x2E5FB4, accent:0xC9D6E8, metal:.35, rough:.45 },
-  { id:'cero',    name:'Cero Giallo',   img:'CeroGiallo.png',
+  { id:'cero',    name:'Cero Giallo',   img:'Cero_chess.png',
     ui:'#E3A81C', uiText:'#2A1F08', main:0xE0A422, accent:0x5A4326, metal:.05, rough:.55 },
-  { id:'quercia', name:'Quercia Verde', img:'QuerciaVerde.png',
+  { id:'quercia', name:'Quercia Verde', img:'Quercia_chess.png',
     ui:'#3E8E4E', uiText:'#FFFFFF', main:0x6E4B2A, accent:0x3E8E4E, metal:.05, rough:.85 },
-  { id:'tasso',   name:'Tasso Rosso',   img:'TassoRosso.png',
+  { id:'tasso',   name:'Tasso Rosso',   img:'Tasso_chess.png',
     ui:'#C0452F', uiText:'#FFFFFF', main:0xAF3D2B, accent:0xEFE8DA, metal:.10, rough:.55 },
 ];
 const LETTER  = { p:'P', n:'C', b:'A', r:'T', q:'Rg', k:'Re' };  // iniziali italiane
@@ -1013,6 +1108,7 @@ function refreshStatus(){
     const k=findKing(state.board,state.turn), p=sqPos(k);
     chkRing.position.set(p.x,.10,p.z); chkRing.visible=true;
     setStatus('Scacco a '+cur.name+'!', null, true);
+    SFX.alert();
   } else {
     setStatus('Tocca a '+cur.name, cur);
   }
@@ -1021,6 +1117,7 @@ function refreshStatus(){
 }
 function endGame(winner, reason){
   game.over=true; clearMarks(); updateHUD();
+  if(winner!==null) SFX.fanfare(); else SFX.ding();
   const imgs=$('endImgs'); imgs.innerHTML='';
   if(winner!==null){
     const w=game.teams[winner];
@@ -1064,15 +1161,17 @@ function execMove(m, promoT){
     const rk = mover===0?0:56;
     const rf = m.castle==='k'?rk+7:rk, rt = m.castle==='k'?rk+5:rk+3;
     const rg=meshAt[rf]; meshAt[rt]=rg; meshAt[rf]=null;
-    glide(rg, rf, rt, false);
+    glide(rg, rf, rt, false, ()=>SFX.toc());
   }
   glide(g, m.from, m.to, movedType==='n', ()=>{
+    if(cap) SFX.thud(); else SFX.toc();
     if(m.promo){
       piecesGroup.remove(g); g.traverse(o=>{ if(o.isMesh) o.geometry.dispose(); });
       const ng=buildPiece(state.board[m.to].t, game.teams[mover]);
       const p=sqPos(m.to); ng.position.copy(p);
       if(mover===1) ng.rotation.y=Math.PI;
       piecesGroup.add(ng); meshAt[m.to]=ng;
+      SFX.sparkle();
     }
     busy=false;
     refreshStatus();
@@ -1080,6 +1179,7 @@ function execMove(m, promoT){
 }
 function undo(){
   if(!game.history.length || busy || promoPending) return;
+  SFX.swooshDown();
   const s=game.history.pop();
   state.board=s.board; state.turn=s.turn; state.ep=s.ep; state.half=s.half; state.rights=s.rights;
   game.captured=[s.cap0,s.cap1]; game.last=s.last; game.over=false;
@@ -1162,6 +1262,7 @@ function pick(cx,cy){
   if(p && p.c===state.turn){
     selected=sq; curLegal=legalMoves(state,sq);
     showMarks(sq,curLegal);
+    SFX.click();
   } else { selected=null; curLegal=[]; clearMarks(); }
 }
 
@@ -1181,6 +1282,7 @@ function openPromo(){
     row.appendChild(b);
   }
   $('promoOv').classList.add('show');
+  SFX.pop();
 }
 
 /* =====================================================================
@@ -1239,6 +1341,7 @@ function startGame(){
   camCtl.theta=0; camCtl.phi=.95; camCtl.radius=12.5; applyCamera();
   spawnAll(); chkRing.visible=false; showLast(); clearMarks();
   refreshStatus(); updateHUD();
+  SFX.swoosh();
 }
 $('startBtn').addEventListener('click', startGame);
 $('rematchBtn').addEventListener('click', ()=>{ $('endOv').classList.remove('show'); startGame(); });
@@ -1254,6 +1357,10 @@ $('viewBtn').addEventListener('click', ()=>animCameraTo(state.turn===0?0:Math.PI
 $('autoBtn').addEventListener('click', function(){
   autoView=!autoView;
   this.textContent='Auto-vista: '+(autoView?'ON':'OFF');
+});
+$('sfxBtn').textContent='Audio: '+(SFX.on?'ON':'OFF');
+$('sfxBtn').addEventListener('click', function(){
+  this.textContent='Audio: '+(SFX.toggle()?'ON':'OFF');
 });
 $('infoBtn').addEventListener('click', ()=>$('infoOv').classList.add('show'));
 $('infoBtn2').addEventListener('click', ()=>$('infoOv').classList.add('show'));
